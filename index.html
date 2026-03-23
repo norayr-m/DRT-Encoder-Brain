@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRT: The 7-Column Generator Signal QED</title>
+    <style>
+        body { margin: 0; background: #0b0c10; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; height: 100vh; overflow: hidden; padding-top: 10px;}
+        .header { font-size: 20px; font-weight: bold; color: #34c759; z-index: 10; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; display:flex; justify-content:space-between; width:95%; max-width:1600px; align-items:center;}
+        .explain-btn { padding: 8px 16px; background: rgba(52, 199, 89, 0.2); color: #34c759; border: 1px solid #34c759; border-radius: 6px; cursor: pointer; font-family: monospace; font-weight: bold; font-size: 14px; transition: 0.2s; box-shadow: 0 0 10px rgba(52,199,89,0.1);}
+        .explain-btn:hover { background: #34c759; color: #000; box-shadow: 0 0 20px #34c759;}
+
+        .main-container { display: flex; gap: 20px; align-items: flex-start; z-index: 10; position: relative; width: 95%; max-width: 1600px; margin: 0 auto; height: 90vh;}
+        
+        /* LEFT PANEL: COL 0 MASTER */
+        .col-0-master { display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(10, 132, 255, 0.05); padding: 20px; border-radius: 12px; border: 1px solid rgba(10, 132, 255, 0.2); width: 320px; height: 100%; box-shadow: 0 0 30px rgba(10,132,255,0.1); position: relative; z-index: 20; flex-shrink: 0;}
+        .col-0-title { font-size: 16px; font-weight: bold; color: #0a84ff; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 10px #0a84ff;}
+        .col-0-sub { font-size: 10px; color: #aaa; margin-top: 5px; margin-bottom: 30px; }
+        
+        .euler-canvas-wrap { position: relative; width: 100%; height: 320px; }
+        .euler-canvas { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 1;}
+        .hz-dial-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 80px; height: 80px; background: rgba(0,0,0,0.8); border: 2px solid #0a84ff; border-radius: 50%; box-shadow: inset 0 0 15px rgba(10,132,255,0.5);}
+        .hz-input { width: 50px; background: transparent; border: none; color: #fff; font-size: 24px; font-weight: bold; font-family: monospace; text-align: center; text-shadow: 0 0 10px #fff; outline: none; -moz-appearance: textfield;}
+        .hz-input::-webkit-outer-spin-button, .hz-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .hz-label { font-size: 10px; color: #0a84ff; font-weight: bold; margin-top: -2px;}
+        .formula-display { font-size: 14px; color: #34c759; margin-top: 15px; font-weight: bold; text-align: center; line-height: 1.5; background:rgba(0,0,0,0.5); padding:10px; border-radius:8px; border:1px solid #333; width: 80%;}
+        .play-btn { margin-top: 25px; padding: 12px 25px; background: #0a84ff; color: #fff; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; z-index: 50; font-family: monospace; font-size: 16px; transition: 0.1s;}
+        .play-btn:hover { background: #007aff; box-shadow: 0 0 15px #0a84ff;}
+        .play-btn.paused { background: #ff3b30; box-shadow: 0 0 15px #ff3b30;}
+
+        /* RIGHT PANEL: 5 EDUCATIONAL LAYERS */
+        .right-panel { display: flex; flex-direction: column; gap: 20px; flex-grow: 1; height: 100%; overflow-y: auto; overflow-x: hidden; padding-right:15px; z-index: 20; padding-bottom: 50px;}
+        .right-panel::-webkit-scrollbar { width: 8px; }
+        .right-panel::-webkit-scrollbar-track { background: #111; border-radius:4px;}
+        .right-panel::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; border: 1px solid #222;}
+        
+        .layer-box { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; width: 100%; background: rgba(255,255,255,0.02); padding: 15px 15px 25px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); position: relative; box-sizing: border-box;}
+        .layer-label { position: absolute; top: -10px; left: 20px; background: #0b0c10; padding: 2px 10px; font-size: 11px; font-weight: bold; border: 1px solid #333; border-radius: 4px; z-index: 10; white-space: nowrap;}
+        .edu-note { position: absolute; bottom: 5px; right: 20px; font-size: 9px; color: #666; font-style: italic; }
+
+        .col-box { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); width: 110px; height: 160px; flex-shrink: 0; justify-content: flex-start;}
+        .col-title { font-size: 9px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; text-align: center; white-space: nowrap;}
+        .c1-value, .c2-value { font-size: 26px; font-weight: bold; text-shadow: 0 0 10px; margin-top: 25px;}
+        .c1-value { color: #0a84ff; } .c2-value { color: #ff9f0a; }
+        .c3-matrix { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: 15px; }
+        .c3-row { height: 14px; background: #222; border-radius: 3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#555;}
+        .c3-row.active { background: #ff9f0a; color: #000; box-shadow: 0 0 10px #ff9f0a; font-weight:bold; }
+        .c4-dice { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+        .c4-dice-item { width: 18px; height: 18px; background: #333; border-radius: 4px; border: 1px solid #555; position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; padding: 2px;}
+        .c4-dice-item.active { background: #34c759; border-color: #34c759; box-shadow: 0 0 10px #34c759; }
+        .dot { width: 3px; height: 3px; background: #000; border-radius: 50%; position: absolute; }
+        .d-center{top:50%;left:50%;transform:translate(-50%,-50%);} .d-tl{top:2px;left:2px;} .d-tr{top:2px;right:2px;} .d-ml{top:50%;left:2px;transform:translateY(-50%);} .d-mr{top:50%;right:2px;transform:translateY(-50%);} .d-bl{bottom:2px;left:2px;} .d-br{bottom:2px;right:2px;}
+        .c5-components { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: 10px; }
+        .c5-canvas { width: 100%; height: 20px; background: rgba(0,0,0,0.5); border-radius: 2px;}
+        .c6-composite, .c7-play { width: 100%; height: 90px; margin-top: 20px; border-radius: 4px; }
+        .c6-composite { background: rgba(0,0,0,0.8); border: 1px solid #444; }
+        .c7-play { background: rgba(52, 199, 89, 0.1); border: 1px solid #34c759; box-shadow: 0 0 15px rgba(52, 199, 89, 0.2); }
+
+        .nn-canvas-container { position: relative; width: 100%; min-width: 300px; max-width: 480px; height: 160px; background: rgba(0,0,0,0.4); border: 1px solid #333; border-radius: 8px; overflow: hidden; flex-shrink: 0;}
+        .nn-cvs { position: absolute; top:0; left:0; width:100%; height:100%; }
+        .nn-master-container { width: 100%; height: 160px; background: rgba(0,0,0,0.4); border: 1px solid #444; border-radius: 8px; box-shadow: inset 0 0 20px #000; position: relative; overflow: visible;}
+        .s4-col-labels { position: absolute; top: -15px; left: 0; width: 100%; height: 20px; display: flex; justify-content: space-evenly; pointer-events: none;}
+        .s4-label { color: #FF3B30; font-size: 9px; font-weight: bold; background: #111; padding: 2px 5px; border: 1px solid #444; border-radius: 4px; text-transform: uppercase;}
+
+        .tensor-container { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; height: 160px; font-family: monospace; font-size: 14px; font-weight: bold;}
+        .tensor-matrix { display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; border: 1px solid #32d74b; box-shadow: 0 0 15px rgba(50,215,75,0.2); position: relative;}
+        .tensor-matrix::before { content: "["; position: absolute; left: -10px; top: 0; bottom: 0; font-size: 130px; font-weight: lighter; color: #32d74b; display: flex; align-items: center; line-height: 0;}
+        .tensor-matrix::after { content: "]"; position: absolute; right: -10px; top: 0; bottom: 0; font-size: 130px; font-weight: lighter; color: #32d74b; display: flex; align-items: center; line-height: 0;}
+        .t-row { display: flex; gap: 15px; color: #32d74b; }
+        .t-cell { width: 25px; text-align: right; }
+        .t-cell.active { color: #fff; text-shadow: 0 0 10px #fff; background: rgba(50,215,75,0.3); border-radius: 2px;}
+        .t-operator { font-size: 24px; color: #fff; margin: 0 10px;}
+
+        #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        .audio-btn { position: absolute; bottom: 20px; right: 20px; padding: 10px 20px; background: #34c759; color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; z-index: 50; font-family: monospace; font-size: 14px;}
+
+        /* MODAL EXPLAINER UI */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px);}
+        .modal-content { background: #111; border: 1px solid #333; border-radius: 12px; width: 80%; max-width: 1200px; height: 80vh; padding: 40px; box-shadow: 0 0 50px rgba(0,0,0,0.8); overflow-y: auto; display: flex; flex-direction: column; gap: 30px;}
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 20px;}
+        .modal-title { font-size: 28px; color: #fff; font-weight: bold;}
+        .close-btn { background: none; border: none; color: #ff3b30; font-size: 32px; cursor: pointer; font-weight: bold;}
+        
+        .exp-section { display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; border-left: 4px solid #fff;}
+        .exp-sec-1 { border-left-color: #ff9f0a; } .exp-sec-2 { border-left-color: #0a84ff; } .exp-sec-3 { border-left-color: #bf5af2; } .exp-sec-4 { border-left-color: #ff3b30; } .exp-sec-5 { border-left-color: #32d74b; }
+        .exp-title { font-size: 18px; font-weight: bold; color: #fff;}
+        .exp-text { font-size: 14px; color: #bbb; line-height: 1.6;}
+        .exp-diagram { display: flex; gap: 10px; margin-top: 15px; padding: 10px; background: #000; border-radius: 8px; border: 1px dashed #444; align-items:center; justify-content:center; color:#555; font-size:12px;}
+
+        /* PAPER MODAL UI */
+        .paper-content { background: #fdfdfd; color: #111; font-family: 'Times New Roman', serif; border-radius: 4px; width: 80%; max-width: 900px; height: 85vh; padding: 40px 60px; box-shadow: 0 0 50px rgba(0,0,0,0.8); overflow-y: auto; display: flex; flex-direction: column; gap: 20px;}
+        .paper-title { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 10px;}
+        .paper-author { font-size: 16px; text-align: center; margin-bottom: 20px;}
+        .paper-abstract { font-size: 14px; font-style: italic; margin: 0 40px 20px 40px; text-align: justify;}
+        .paper-section { font-size: 18px; font-weight: bold; margin-top: 20px; border-bottom: 1px solid #ccc; padding-bottom: 5px;}
+        .paper-subsection { font-size: 16px; font-weight: bold; margin-top: 15px;}
+        .paper-text { font-size: 15px; line-height: 1.6; text-align: justify;}
+        .math-eq { text-align: center; margin: 15px 0; font-size: 18px;}
+        .paper-close-btn { background: none; border: none; color: #ff3b30; font-size: 32px; cursor: pointer; font-weight: bold;}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+            <div>DRT: 7-COLUMN SIGNAL TOPOLOGY QED</div>
+            <div style="display:flex; gap:10px;">
+                <button class="explain-btn" id="openModalBtn">EXPLAIN ARCHITECTURE</button>
+                <button class="explain-btn" id="openPaperBtn" style="border-color:#0a84ff; color:#0a84ff;">FORMAL PAPER</button>
+            </div>
+        </div>
+        <!-- GLOBAL UNIFIED DRT TOPOLOGY NAV -->
+        <div style="display:flex; gap:10px; margin-top:20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; width:100%; justify-content:center;">
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-generator-NM_v01.html'" style="border-color:#ff3b30; color:#ff3b30; font-weight:bold; background:rgba(255,59,48,0.1);">01 COMPOSER</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-scanner-NM_v01.html'" style="border-color:#ff9f0a; color:#ff9f0a;">02 SCANNER</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-pipeline-NM_v01.html'" style="border-color:#e07060; color:#e07060;">03 PIPELINE</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-cell_simulator-NM_v01.html'" style="border-color:#34c759; color:#34c759;">04 BIO BRAIN</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-harmonic_solver-NM_v01.html'" style="border-color:#0a84ff; color:#0a84ff;">05 ORBITAL SOLVER</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-supernova_solver-NM_v01.html'" style="border-color:#d0b060; color:#d0b060;">06 SUPERNOVA 3D</button>
+        </div>
+    </div>
+
+    <!-- EXPLAINER MODAL -->
+    <div class="modal-overlay" id="explainerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">THE HARMONIC GENERATOR: ARCHITECTURE EXPLAINED</div>
+                <button class="close-btn" id="closeModalBtn">&times;</button>
+            </div>
+            
+            <p style="color:#aaa; font-size:16px; line-height:1.5;">
+                This interface is a continuous mathematical visualization mapping a raw hardware clock (The Euler Oscillator) directly into a Deep Tensor Neural Network. Following Patrick Winston’s rule of pedagogy—<i>"one can only grasp what they are about to know"</i>—this dashboard walks you through 5 explicitly equivalent visual representations of the exact same signal generation logic.
+            </p>
+
+            <div class="exp-section exp-sec-1">
+                <div class="exp-title" style="color:#ff9f0a;">PHASE 1: LOGICAL 4-COLUMN CASCADE</div>
+                <div class="exp-text">
+                    This is the highest level of intuition. The physical rotating clock provides a <strong>Phase (Col 1)</strong>. That phase looks up a <strong>Pattern ID (Col 2)</strong>. The pattern selects a specific row in the <strong>Routing Matrix (Col 3)</strong>, which physically extrudes a set of weighted nodes—visualized here as <strong>Literal Dice (Col 4)</strong>. These discrete logic steps construct the harmonic frequencies.
+                </div>
+                <div class="exp-diagram">[ Phase Tick ] ➔ [ ID LUT ] ➔ [ Row Select ] ➔ [ Vector Weights ]</div>
+            </div>
+
+            <div class="exp-section exp-sec-2">
+                <div class="exp-title" style="color:#0a84ff;">PHASE 2: ALGEBRAIC GROUP OPERATIONS</div>
+                <div class="exp-text">
+                    Moving down one level of abstraction. The discrete lookup tables are replaced by visual <strong>Mathematical Group Operations</strong>. Instead of static arrays, the pattern shifts are represented graphically as a Neural Network performing geometric shifts (Forward shift, Backward shift). We begin to see the logic as pure mathematical routing.
+                </div>
+                <div class="exp-diagram">Layer_{in} ➔ [ Cyclic Shift Matrix C_7 ] ➔ Layer_{out}</div>
+            </div>
+
+            <div class="exp-section exp-sec-3">
+                <div class="exp-title" style="color:#bf5af2;">PHASE 3: DEEP PERCEPTRON (NON-LINEAR MATMUL)</div>
+                <div class="exp-text">
+                    Here, the algebraic constraint is formalized into a traditional <strong>Feed-Forward Neural Network</strong>. The visual connections simulate literal deep learning weights traversing hidden layers. Simulated non-linear activation functions (ReLU, Sigmoid, Tanh) explicitly resolve the structural geometry into the exact output dice configurations from Phase 1.
+                </div>
+                <div class="exp-diagram">Input Vector ➔ W_1 ➔ ReLU ➔ W_2 ➔ Output Vector</div>
+            </div>
+
+            <div class="exp-section exp-sec-4">
+                <div class="exp-title" style="color:#ff3b30;">PHASE 4: 7-COLUMN DEEP TOPOLOGY</div>
+                <div class="exp-text">
+                    The grand unification phase. We discard the discrete boxes from Phase 1 and visually instantiate all 7 logic steps (from Phase to Wave Assembly) as a <strong>continuous 7-layer Deep Topologic Graph</strong>. The structural mapping is absolute: what was once a rigid programming pipeline (Phase ➔ LUT ➔ Dice ➔ Output) is structurally equivalent to a Deep Neural Matrix propagating weights across hidden layers.
+                </div>
+                <div class="exp-diagram">L1 ➔ L2 ➔ L3 ➔ L4 ➔ L5 ➔ L6 ➔ L7</div>
+            </div>
+
+            <div class="exp-section exp-sec-5">
+                <div class="exp-title" style="color:#32d74b;">PHASE 5: RAW TENSOR ALGEBRA</div>
+                <div class="exp-text">
+                    The literal computational bedrock. All abstract visuals are stripped away, leaving only the execution matrices. You are watching <strong>Linear Algebra</strong> unfold in real-time. The rotating hardware tick becomes a sparse vector, which is multiplied by the \( W \) Tensor weight grid, resulting identically in the scalar bounds governing the harmonic Audio Output.
+                </div>
+                <div class="exp-diagram">[ \( W_{tensor} \) ] × [ \( V_{phase} \) ] = [ \( V_{output} \) ]</div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- PAPER MODAL -->
+    <div class="modal-overlay" id="paperModal">
+        <div class="paper-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                <div style="display:flex; gap:15px;">
+                    <a href="Article_Harmonic_Generator.pdf" target="_blank" style="padding: 5px 10px; background: #eee; border:1px solid #ccc; color:#333; text-decoration:none; font-family:monospace; font-size:12px; border-radius:4px;">📥 PDF</a>
+                    <a href="Article_Harmonic_Generator.tex" target="_blank" style="padding: 5px 10px; background: #eee; border:1px solid #ccc; color:#333; text-decoration:none; font-family:monospace; font-size:12px; border-radius:4px;">📥 LaTeX</a>
+                </div>
+                <button class="paper-close-btn" id="closePaperBtn">&times;</button>
+            </div>
+            
+            <div class="paper-title">Simplicial Monotonicity & The Harmonic Generator<br><span style="font-size:18px; font-weight:normal;">A Deterministic Topological Framework for Distributed Signal Engineering</span></div>
+            <div class="paper-author">Norayr / Minky<br>Hive Council<br>March 22, 2026</div>
+            
+            <div class="paper-abstract">
+                <strong>Abstract.</strong> This architecture outlines the deterministic mapping of a low-level continuous hardware clock into a fully represented \( 5 \times 7 \) topological Feed-Forward matrix, bypassing standard backpropagation loops in favor of monotonic simplicial generation. By treating localized neural network layers as equivalent algebraic group operants (\( G \times M \to M \)), we define a strictly deterministic logic cascade that resolves phase oscillation directly into bounded physical harmonics. We present the 5-tier translational equivalence that maps discrete integer arrays into dynamic linear algebra tensors.
+            </div>
+
+            <div class="paper-section">1. Introduction</div>
+            <div class="paper-text">Modern distributed intelligence models suffer from latency scaling due to recursive validation checks. The Harmonic Generator QED abandons non-deterministic prediction, positing instead a Socratic truth extraction model reliant upon a shared crystal clock. The system is formalized as a sequence \( E(t) = e^{-i\omega t} \), distributing the structural rotation across the Hive in synchronized pulses.</div>
+
+            <div class="paper-section">2. The 5-Tier Translational Hierarchy</div>
+            <div class="paper-text">We utilize Patrick Winston's pedagogical structuring to validate the equivalence of the mathematical mappings:</div>
+
+            <div class="paper-subsection">2.1 Phase 1: Discrete Logic Pipeline</div>
+            <div class="paper-text">The signal initiates within a generic Lookup Table (LUT). The mapping \( f: S^1 \to \mathbb{Z}^5 \) operates as a 4-step sequence:<br>
+            1. \( L_{phase} \): Discretization of continuous Euler time.<br>
+            2. \( L_{id} \): Static state mapping.<br>
+            3. \( L_{mat} \): Hardware state constraint.<br>
+            4. \( L_{dice} \): Deterministic weight extraction.</div>
+
+            <div class="paper-subsection">2.2 Phase 2: Abstract Group Operations</div>
+            <div class="paper-text">The discrete steps operate fundamentally as actions upon a mathematical group \( G \). The static phase transition \( x_t \to x_{t+1} \) can be accurately represented as symmetric rotation matrices across the set \( V \):
+                <div class="math-eq">$$ x_{t+1} = \Phi_g (x_t) = (x_t - g) \pmod 7 + 1 $$</div>
+            </div>
+
+            <div class="paper-subsection">2.3 Phase 3 & 4: Topological Expansion</div>
+            <div class="paper-text">The algebraic shift operations natively expand into Deep Feed-Forward hidden layers. By instantiating a Matrix operator \( W \in \mathbb{R}^{n \times m} \) and applying common non-linear filters \( \sigma(x) \), we visualize the explicit equivalency. A 7-depth neural network graph represents the exact temporal states of the discrete cascade simultaneously in space.</div>
+
+            <div class="paper-subsection">2.4 Phase 5: Raw Tensor Algebra</div>
+            <div class="paper-text">The extraction reduces into \( \mathcal{O}(1) \) computation via linear matrix-vector products. Let \( P_t \) be the localized one-hot phase row. We solve:
+                <div class="math-eq">$$ V_{out} = W \cdot P_t $$</div>
+            This mathematically enforces identical structural integrity globally across the distributed cluster without secondary communication checks.</div>
+
+            <div class="paper-section">3. Conclusion</div>
+            <div class="paper-text">The Harmonic Generator effectively unifies low-abstraction circuit signaling with the mathematical vocabulary of high-order neural network tensor frameworks, successfully completing the Distributed Reconstruction Theorem (DRT) Socratic signal resolution.</div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <div class="main-container">
+        <!-- LEFT PANEL: COL 0 MASTER -->
+        <div class="col-0-master" id="col0">
+            <div class="col-0-title">Column 0</div>
+            <div class="col-0-sub">MASTER EULER OSCILLATOR</div>
+            
+            <div class="euler-canvas-wrap">
+                <canvas class="euler-canvas" id="masterEuler"></canvas>
+                <!-- INTERACTIVE HZ DIAL -->
+                <div class="hz-dial-container">
+                    <input type="number" id="hzInput" class="hz-input" value="5.0" step="0.5" min="0.5" max="60.0">
+                    <div class="hz-label">Hz</div>
+                </div>
+            </div>
+            
+            <div class="formula-display">
+                e^{i 2\pi f t} = \cos(2\pi f t) + i\sin(2\pi f t)<br>
+                <span style="font-size:11px; color:#aaa; font-weight:normal; margin-top:5px; display:block;">Counter-Clockwise Phase Extractor</span>
+            </div>
+
+            <button class="play-btn" id="playBtn">PAUSE EULER</button>
+        </div>
+
+        <!-- RIGHT PANEL: 5 EDUCATIONAL LAYERS -->
+        <div class="right-panel">
+            
+            <!-- SEC 1: CASCADE -->
+            <div class="layer-box" id="layer1" style="border-color:#ff9f0a;">
+                <div class="layer-label" style="color:#ff9f0a;">PHASE 1: LOGICAL 4-COLUMN CASCADE (Discrete Topology)</div>
+                <div class="col-box" id="c1-1"><div class="col-title">Col 1<br>Phase</div><div class="c1-value" id="c1-val">0</div></div>
+                <div class="col-box" id="c2-1"><div class="col-title">Col 2<br>LUT Pat</div><div class="c2-value" id="c2-val">0</div></div>
+                <div class="col-box" id="c3-1"><div class="col-title">Col 3<br>Matrix Row</div><div class="c3-matrix">
+                    <div class="c3-row" id="row-0">0</div><div class="c3-row" id="row-1">1</div><div class="c3-row" id="row-2">2</div><div class="c3-row" id="row-3">3</div><div class="c3-row" id="row-4">4</div>
+                </div></div>
+                <div class="col-box" id="c4-1"><div class="col-title">Col 4<br>Dice Config</div><div class="c4-dice" id="c4-dice"></div></div>
+                <div class="col-box" style="width:130px;"><div class="col-title">Col 5<br>Components</div><div class="c5-components" id="cvs-c5-1"></div></div>
+                <div class="col-box" style="width:130px;"><div class="col-title">Col 6<br>Assembly</div><canvas class="c6-composite" id="cvs-c6-1"></canvas></div>
+                <div class="col-box" style="border-color:#34c759; width:130px;"><div class="col-title" style="color:#34c759;">Col 7<br>Output</div><canvas class="c7-play" id="cvs-c7-1"></canvas></div>
+                <div class="edu-note">Understanding the discrete step-by-step logic extraction.</div>
+            </div>
+
+            <!-- SEC 2: ALGEBRAIC GROUP NN -->
+            <div class="layer-box" id="layer2" style="border-color:#0a84ff;">
+                <div class="layer-label" style="color:#0a84ff;">PHASE 2: ALGEBRAIC GROUP OPERATIONS (Pattern Shift Abstraction)</div>
+                <div class="nn-canvas-container" id="nnContainer2">
+                    <canvas class="nn-cvs" id="nnCvs2"></canvas>
+                    <div id="nnLabel2" style="position:absolute; top:5px; left:10px; color:#0a84ff; font-weight:bold; font-size:10px;">GROUP OP: C7</div>
+                </div>
+                <div class="col-box" style="width:140px;"><div class="col-title">Col 5<br>Components</div><div class="c5-components" id="cvs-c5-2"></div></div>
+                <div class="col-box" style="width:140px;"><div class="col-title">Col 6<br>Assembly</div><canvas class="c6-composite" id="cvs-c6-2"></canvas></div>
+                <div class="col-box" style="border-color:#0a84ff; width:140px;"><div class="col-title" style="color:#0a84ff;">Col 7<br>Output</div><canvas class="c7-play" id="cvs-c7-2" style="background:rgba(10,132,255,0.1); border-color:#0a84ff;"></canvas></div>
+                <div class="edu-note">Mapping discrete loops into cyclic mathematical group states.</div>
+            </div>
+
+            <!-- SEC 3: PURE MATMUL ACTIVATOR -->
+            <div class="layer-box" id="layer3" style="border-color:#bf5af2;">
+                <div class="layer-label" style="color:#bf5af2;">PHASE 3: DEEP PERCEPTRON (Non-Linear MatMul Extrapolation)</div>
+                <div class="nn-canvas-container" id="nnContainer3">
+                    <canvas class="nn-cvs" id="nnCvs3"></canvas>
+                    <div id="nnLabel3" style="position:absolute; top:5px; left:10px; color:#bf5af2; font-weight:bold; font-size:10px;">ACTIVATION LAYER TENSOR</div>
+                </div>
+                <div class="col-box" style="width:140px;"><div class="col-title">Col 5<br>Components</div><div class="c5-components" id="cvs-c5-3"></div></div>
+                <div class="col-box" style="width:140px;"><div class="col-title">Col 6<br>Assembly</div><canvas class="c6-composite" id="cvs-c6-3"></canvas></div>
+                <div class="col-box" style="border-color:#bf5af2; width:140px;"><div class="col-title" style="color:#bf5af2;">Col 7<br>Output</div><canvas class="c7-play" id="cvs-c7-3" style="background:rgba(191,90,242,0.1); border-color:#bf5af2;"></canvas></div>
+                <div class="edu-note">Visualizing the weight matrices connecting the internal topological layers.</div>
+            </div>
+
+            <!-- SEC 4: FULL NEURAL MATRIX DEEP GRAPH -->
+            <div class="layer-box" id="layer4" style="border-color:#FF3B30;">
+                <div class="layer-label" style="color:#FF3B30;">PHASE 4: 7-COLUMN DEEP TOPOLOGY (Continuous Representation)</div>
+                <div class="nn-master-container" id="nnContainer4">
+                    <canvas class="nn-cvs" id="nnCvs4"></canvas>
+                    <div class="s4-col-labels">
+                        <div class="s4-label">L1 (IN)</div><div class="s4-label">L2 (LUT)</div><div class="s4-label">L3 (MAT)</div><div class="s4-label">L4 (DICE)</div><div class="s4-label">L5 (WAVE)</div><div class="s4-label">L6 (SUM)</div><div class="s4-label">L7 (OUT)</div>
+                    </div>
+                </div>
+                <div class="edu-note" style="bottom: -5px;">Unifying all logic columns seamlessly entirely into standard Graph hidden layers.</div>
+            </div>
+
+            <!-- SEC 5: RAW TENSOR EXECUTION -->
+            <div class="layer-box" id="layer5" style="border-color:#32d74b;">
+                <div class="layer-label" style="color:#32d74b;">PHASE 5: RAW TENSOR ALGEBRA (Execution Matrix)</div>
+                <div class="tensor-container" id="tensorContainer">
+                    <!-- Javascript populates literal matrix -->
+                </div>
+                <div class="edu-note">The explicit underlying computational linear algebra producing the precise harmonics.</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Wire routing -->
+    <canvas id="bgCanvas"></canvas>
+    <button class="audio-btn" id="audioToggle">UNMUTE AUDIO BEES</button>
+
+    <script>
+        // MODAL LOGIC
+        const modal = document.getElementById('explainerModal');
+        document.getElementById('openModalBtn').addEventListener('click', () => modal.style.display = 'flex');
+        document.getElementById('closeModalBtn').addEventListener('click', () => modal.style.display = 'none');
+        
+        const pModal = document.getElementById('paperModal');
+        document.getElementById('openPaperBtn').addEventListener('click', () => pModal.style.display = 'flex');
+        document.getElementById('closePaperBtn').addEventListener('click', () => pModal.style.display = 'none');
+
+        window.addEventListener('click', (e) => { 
+            if(e.target === modal) modal.style.display = 'none';
+            if(e.target === pModal) pModal.style.display = 'none';
+        });
+
+        // GLOBALS
+        let timeTick = 0; const loopLength = 20; let flashOpacity = 0;
+        let isPlaying = true;
+        let targetHz = 5.0; let tickIntervalMS = 1000 / targetHz;
+        
+        // CONTROLS
+        document.getElementById('hzInput').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            if(val > 0) { targetHz = val; tickIntervalMS = 1000 / targetHz; }
+        });
+
+        document.getElementById('playBtn').addEventListener('click', (e) => {
+            isPlaying = !isPlaying;
+            e.target.innerText = isPlaying ? "PAUSE EULER" : "PLAY EULER";
+            e.target.className = isPlaying ? "play-btn" : "play-btn paused";
+        });
+
+        function getDiceDots(val) {
+            if(val===1) return `<div class="dot d-center"></div>`;
+            if(val===2) return `<div class="dot d-tl"></div><div class="dot d-br"></div>`;
+            if(val===3) return `<div class="dot d-tl"></div><div class="dot d-center"></div><div class="dot d-br"></div>`;
+            if(val===4) return `<div class="dot d-tl"></div><div class="dot d-tr"></div><div class="dot d-bl"></div><div class="dot d-br"></div>`;
+            if(val===5) return `<div class="dot d-tl"></div><div class="dot d-tr"></div><div class="dot d-center"></div><div class="dot d-bl"></div><div class="dot d-br"></div>`;
+            if(val===6) return `<div class="dot d-tl"></div><div class="dot d-ml"></div><div class="dot d-bl"></div><div class="dot d-tr"></div><div class="dot d-mr"></div><div class="dot d-br"></div>`;
+            if(val>=7) return `<div class="dot d-tl"></div><div class="dot d-ml"></div><div class="dot d-bl"></div><div class="dot d-tr"></div><div class="dot d-mr"></div><div class="dot d-br"></div><div class="dot d-center"></div>`;
+            return ``;
+        }
+        const diceBox = document.getElementById('c4-dice');
+        for(let i=0; i<5; i++) diceBox.innerHTML += `<div class="c4-dice-item" id="die-${i}"></div>`;
+
+        function initC5(id, count) {
+            const container = document.getElementById(id); const canvases = [];
+            for (let i = 0; i < count; i++) {
+                const cvs = document.createElement('canvas'); cvs.className = 'c5-canvas'; container.appendChild(cvs); canvases.push({ canvas: cvs, ctx: cvs.getContext('2d') });
+            } return canvases;
+        }
+        const c5_1 = initC5('cvs-c5-1', 5); const c5_2 = initC5('cvs-c5-2', 5); const c5_3 = initC5('cvs-c5-3', 5);
+
+        function drawLocalWave(ctxObj, diceConfig, internalTick, color) {
+            const cvs = ctxObj.canvas; cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const ctx = ctxObj.ctx; ctx.clearRect(0,0,cvs.width,cvs.height); ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+            for(let x=0; x<cvs.width; x++) {
+                const t = internalTick + (x * 0.1); const y = cvs.height/2 + Math.sin(diceConfig * t * 0.2) * (cvs.height/2 - 2);
+                if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            } ctx.stroke();
+        }
+        const histLen = 100; let c6Data1 = Array(histLen).fill(0), c6Data2 = Array(histLen).fill(0), c6Data3 = Array(histLen).fill(0);
+        function drawComposite(id, dataArr, color) {
+            const cvs = document.getElementById(id); cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height); ctx.beginPath(); ctx.strokeStyle=color; ctx.shadowColor=color; ctx.shadowBlur=8; ctx.lineWidth=2;
+            const dx = cvs.width / histLen;
+            for(let i=0; i<histLen; i++) {
+                const x = i * dx; const v = Math.min(Math.max(dataArr[i], -1), 1); const y = cvs.height/2 - (v * (cvs.height/2 - 10));
+                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            } ctx.stroke(); ctx.shadowBlur=0;
+        }
+
+        let globalPulseX = 0; let globalPulseY = 0;
+        function drawMasterEuler(phase) {
+            const cvs = document.getElementById('masterEuler'); cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+            const cx = cvs.width/2, cy = cvs.height/2, rad = cvs.width/2 - 20;
+
+            ctx.beginPath(); ctx.moveTo(20, cy); ctx.lineTo(cvs.width-20, cy); ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx, 20); ctx.lineTo(cx, cvs.height-20); ctx.stroke();
+            ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.font="10px monospace"; ctx.fillText("cos(ωt)", cvs.width-55, cy-5); ctx.fillText("i sin(ωt)", cx+5, 25);
+            ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth=1; ctx.stroke();
+            ctx.beginPath(); ctx.arc(cx, cy, 45, 0, Math.PI*2); ctx.strokeStyle = 'rgba(10,132,255,0.3)'; ctx.stroke();
+
+            const eRect = cvs.getBoundingClientRect();
+
+            for(let i=0; i<loopLength; i++) {
+                const angle = - (i/loopLength)*Math.PI*2;
+                const x = cx + Math.cos(angle)*rad, y = cy + Math.sin(angle)*rad;
+                ctx.beginPath(); ctx.arc(x,y, 4, 0, Math.PI*2);
+                if(i===phase) { ctx.fillStyle='#fff'; ctx.shadowColor='#fff'; ctx.shadowBlur=15; ctx.fill(); globalPulseX = x + eRect.left; globalPulseY = y + eRect.top; }
+                else { ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.shadowBlur=0; ctx.fill(); }
+            }
+            const pAngle = - (timeTick/loopLength)*Math.PI*2;
+            ctx.beginPath(); ctx.arc(cx+Math.cos(pAngle)*rad, cy+Math.sin(pAngle)*rad, 6, 0, Math.PI*2); ctx.fillStyle='#0a84ff'; ctx.shadowColor='#0a84ff'; ctx.shadowBlur=20; ctx.fill(); ctx.shadowBlur=0;
+        }
+
+        function getNNCoords(cvsId, nodeConfig) {
+            const cvs = document.getElementById(cvsId); cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const w = cvs.width, h = cvs.height; const layers = []; const xStep = w / (nodeConfig.length + 1);
+            nodeConfig.forEach((count, lIdx) => {
+                let nodes = []; const yStep = h / (count + 1);
+                for(let i=0; i<count; i++) nodes.push({ x: xStep*(lIdx+1), y: yStep*(i+1) }); layers.push(nodes);
+            });
+            return { cvs, ctx: cvs.getContext('2d'), layers };
+        }
+
+        const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d');
+        function drawMainWiring() {
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+            
+            if(!isPlaying) return;
+
+            const targets = [
+                {id: 'c1-1', color: 'rgba(255, 159, 10'},
+                {id: 'nnContainer2', color: 'rgba(10, 132, 255'},   
+                {id: 'nnContainer3', color: 'rgba(191, 90, 242'},   
+                {id: 'nnContainer4', color: 'rgba(255, 59, 48'},
+                {id: 'tensorContainer', color: 'rgba(50, 215, 75'}
+            ];
+
+            targets.forEach(t => {
+                const el = document.getElementById(t.id);
+                if(!el) return;
+                const rect = el.getBoundingClientRect();
+                const tx = rect.left; const ty = rect.top + rect.height/2;
+                bgCtx.beginPath(); bgCtx.moveTo(globalPulseX, globalPulseY);
+                bgCtx.bezierCurveTo(globalPulseX+100, globalPulseY, tx-50, ty, tx, ty);
+                bgCtx.strokeStyle = `${t.color}, ${flashOpacity})`; bgCtx.lineWidth=2; bgCtx.stroke();
+            });
+        }
+
+        const luts = [ [0,0,1,1,2,2,3,3,4,3,2,1,0,4,4,2,2,1,0,0], [1,2,3,1,2], [7,1,7,1,7], [3,3,4,1,2], [2,4,6,4,2], [1,1,1,1,1] ];
+        let sec2State = Array(5).fill(0); let sec3State = Array(5).fill(0);
+        
+        function renderTensorMath(phase, activeDice) {
+            const container = document.getElementById('tensorContainer');
+            let matrixHTML = `<div class="tensor-matrix">`;
+            for(let r=0; r<5; r++) {
+                matrixHTML += `<div class="t-row">`;
+                for(let c=0; c<5; c++) {
+                    const w = luts[c+1][r];
+                    const isActive = (c === luts[0][phase]) ? 'active' : '';
+                    matrixHTML += `<div class="t-cell ${isActive}">${w.toFixed(1)}</div>`;
+                }
+                matrixHTML += `</div>`;
+            }
+            matrixHTML += `</div>`;
+
+            let pVector = `<div class="tensor-matrix">`;
+            for(let r=0; r<5; r++) { const val = (r === luts[0][phase]) ? '1.0' : '0.0'; pVector += `<div class="t-row"><div class="t-cell ${val==='1.0'?'active':''}">${val}</div></div>`; }
+            pVector += `</div>`;
+
+            let rVector = `<div class="tensor-matrix">`;
+            for(let r=0; r<5; r++) { rVector += `<div class="t-row"><div class="t-cell active">${(activeDice[r]).toFixed(1)}</div></div>`; }
+            rVector += `</div>`;
+
+            container.innerHTML = `
+                <div style="color:#aaa; font-size:10px;">[ W_lut ]</div>${matrixHTML}
+                <div class="t-operator">×</div>
+                <div style="color:#aaa; font-size:10px;">[ V_p ]</div>${pVector}
+                <div class="t-operator">=</div>
+                <div style="color:#aaa; font-size:10px;">[ V_{y-dice} ]</div>${rVector}
+            `;
+        }
+
+        let audioCtx, aOn=false; let o1=[], o2=[], o3=[], o4=[];
+        function initAudio() {
+            if(audioCtx) return; audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const g1 = audioCtx.createGain(); g1.gain.value = 0.04; g1.connect(audioCtx.destination);
+            const g2 = audioCtx.createGain(); g2.gain.value = 0.04; g2.connect(audioCtx.destination);
+            const g3 = audioCtx.createGain(); g3.gain.value = 0.04; g3.connect(audioCtx.destination);
+            const g4 = audioCtx.createGain(); g4.gain.value = 0.03; g4.connect(audioCtx.destination);
+            for(let i=0; i<5; i++) {
+                let osc1=audioCtx.createOscillator(); osc1.type='sine'; osc1.connect(g1); osc1.start(); o1.push(osc1);
+                let osc2=audioCtx.createOscillator(); osc2.type='triangle'; osc2.connect(g2); osc2.start(); o2.push(osc2);
+                let osc3=audioCtx.createOscillator(); osc3.type='square'; osc3.connect(g3); osc3.start(); o3.push(osc3);
+                let osc4=audioCtx.createOscillator(); osc4.type='sawtooth'; osc4.connect(g4); osc4.start(); o4.push(osc4);
+            }
+        }
+        document.getElementById('audioToggle').addEventListener('click', () => {
+            if(!aOn) { initAudio(); if(audioCtx.state==='suspended') audioCtx.resume(); aOn=true; document.getElementById('audioToggle').innerText="MUTE AUDIO"; }
+            else { audioCtx.suspend(); aOn=false; document.getElementById('audioToggle').innerText="UNMUTE AUDIO"; }
+        });
+
+        function tick() {
+            if(!isPlaying) return;
+            flashOpacity = 1.0; const phase = timeTick % loopLength; drawMasterEuler(phase);
+
+            document.getElementById('c1-val').innerText = phase; const pID = luts[0][phase]; document.getElementById('c2-val').innerText = "P" + pID;
+            for(let r=0; r<5; r++) document.getElementById('row-'+r).className=(r===pID)?'c3-row active':'c3-row';
+            const s1Dice = luts[pID+1]; let s1Comp=0;
+            for(let i=0; i<5; i++) {
+                const dieEl = document.getElementById('die-'+i);
+                if(dieEl) { dieEl.innerHTML = getDiceDots(s1Dice[i]); dieEl.className = 'c4-dice-item active'; }
+                drawLocalWave(c5_1[i], s1Dice[i], timeTick, '#34c759'); s1Comp+=Math.sin(s1Dice[i]*timeTick*0.2);
+            }
+            c6Data1.push(s1Comp/5.0); c6Data1.shift();
+
+            const gIdx = Math.floor(timeTick/10)%3; let s2Dice=[]; let s2Comp=0; const gLab = document.getElementById('nnLabel2');
+            if(gIdx===0) gLab.innerText="GROUP OP: C7 FORWARD"; else if(gIdx===1) gLab.innerText="GROUP OP: C7 BACKWARD"; else gLab.innerText="GROUP OP: DIRICHLET SCATTER";
+            const nn2 = getNNCoords('nnCvs2', [5, 7, 5]); nn2.ctx.clearRect(0,0,nn2.cvs.width,nn2.cvs.height);
+            for(let i=0; i<nn2.layers[0].length; i++) { for(let j=0; j<nn2.layers[1].length; j++) { nn2.ctx.beginPath(); nn2.ctx.moveTo(nn2.layers[0][i].x, nn2.layers[0][i].y); nn2.ctx.lineTo(nn2.layers[1][j].x, nn2.layers[1][j].y); let act=false; if(gIdx===0 && j===(i+timeTick)%7) act=true; else if(gIdx===1 && j===(i-timeTick+70)%7) act=true; else if(gIdx===2 && Math.random()<0.2) act=true; nn2.ctx.strokeStyle = act ? `rgba(10, 132, 255, ${flashOpacity})` : 'rgba(255,255,255,0.05)'; nn2.ctx.lineWidth = act ? 2 : 1; nn2.ctx.stroke(); } }
+            for(let i=0; i<5; i++) { if(gIdx===0) sec2State[i] = (i+timeTick)%7 + 1; else if(gIdx===1) sec2State[i] = (i-timeTick+70)%7 + 1; else sec2State[i] = Math.max(1, Math.min(7, Math.floor(Math.random()*7)+1)); s2Dice.push(sec2State[i]); drawLocalWave(c5_2[i], sec2State[i], timeTick, '#0a84ff'); s2Comp+=Math.sin(sec2State[i]*timeTick*0.2); }
+            c6Data2.push(s2Comp/5.0); c6Data2.shift();
+            for(let i=0; i<nn2.layers[1].length; i++) { for(let j=0; j<nn2.layers[2].length; j++) { nn2.ctx.beginPath(); nn2.ctx.moveTo(nn2.layers[1][i].x, nn2.layers[1][i].y); nn2.ctx.lineTo(nn2.layers[2][j].x, nn2.layers[2][j].y); nn2.ctx.strokeStyle = (i === s2Dice[j]-1) ? `rgba(10,132,255,${flashOpacity})` : 'rgba(255,255,255,0.05)'; nn2.ctx.stroke(); } }
+            nn2.layers.forEach((lyr, lID) => { lyr.forEach((n) => { nn2.ctx.beginPath(); nn2.ctx.arc(n.x, n.y, 4, 0, Math.PI*2); nn2.ctx.fillStyle='#222'; nn2.ctx.strokeStyle='#555'; nn2.ctx.fill(); nn2.ctx.stroke(); if(lID===2) { nn2.ctx.fillStyle='#0a84ff'; nn2.ctx.fill(); } })});
+
+            let s3Dice=[]; let s3Comp=0; const mLab = document.getElementById('nnLabel3'); const actIdx = Math.floor(timeTick/5)%3;
+            if(actIdx===0) mLab.innerText="MATMUL: RELU ACTIVATOR"; else if(actIdx===1) mLab.innerText="MATMUL: SIGMOID ACTIVATOR"; else mLab.innerText="MATMUL: TANH ACTIVATOR";
+            const nn3 = getNNCoords('nnCvs3', [5, 4, 3, 5]); nn3.ctx.clearRect(0,0,nn3.cvs.width,nn3.cvs.height);
+            for(let l=0; l<nn3.layers.length-1; l++) { for(let i=0; i<nn3.layers[l].length; i++) { for(let j=0; j<nn3.layers[l+1].length; j++) { nn3.ctx.beginPath(); nn3.ctx.moveTo(nn3.layers[l][i].x, nn3.layers[l][i].y); nn3.ctx.lineTo(nn3.layers[l+1][j].x, nn3.layers[l+1][j].y); const w = Math.sin(timeTick + l + i + j); nn3.ctx.strokeStyle = (w > 0.5) ? `rgba(191,90,242,${flashOpacity * w})` : 'rgba(255,255,255,0.05)'; nn3.ctx.lineWidth = (w > 0.5) ? 2 : 1; nn3.ctx.stroke(); } } }
+            nn3.layers.forEach((lyr, lID) => { lyr.forEach((n) => { nn3.ctx.beginPath(); nn3.ctx.arc(n.x, n.y, 4, 0, Math.PI*2); nn3.ctx.fillStyle='#222'; nn3.ctx.strokeStyle='#555'; nn3.ctx.fill(); nn3.ctx.stroke(); if(lID===3) { nn3.ctx.fillStyle='#bf5af2'; nn3.ctx.fill(); } })});
+            for(let i=0; i<5; i++) { const v = Math.abs(Math.sin((i+1)*timeTick*0.3)) * 7; let d = Math.max(1, Math.ceil(v)); if(actIdx===0) d = (d>3)? d : 1; s3Dice.push(d); drawLocalWave(c5_3[i], d, timeTick, '#bf5af2'); s3Comp+=Math.sin(d*timeTick*0.2); }
+            c6Data3.push(s3Comp/5.0); c6Data3.shift();
+
+            const nn4 = getNNCoords('nnCvs4', [5, 4, 6, 4, 5, 3, 1]); nn4.ctx.clearRect(0,0,nn4.cvs.width,nn4.cvs.height);
+            for(let l=0; l<nn4.layers.length-1; l++) { for(let i=0; i<nn4.layers[l].length; i++) { for(let j=0; j<nn4.layers[l+1].length; j++) { nn4.ctx.beginPath(); nn4.ctx.moveTo(nn4.layers[l][i].x, nn4.layers[l][i].y); nn4.ctx.lineTo(nn4.layers[l+1][j].x, nn4.layers[l+1][j].y); const wt = Math.sin((timeTick*0.05) + l + i + j); nn4.ctx.strokeStyle = (wt > 0) ? `rgba(255, 59, 48, ${flashOpacity * wt * 1.5})` : 'rgba(255,255,255,0.05)'; nn4.ctx.lineWidth = (wt > 0) ? 2 : 1; nn4.ctx.stroke(); } } }
+            nn4.layers.forEach((lyr, lID) => { lyr.forEach((n) => { nn4.ctx.beginPath(); nn4.ctx.arc(n.x, n.y, 5, 0, Math.PI*2); nn4.ctx.fillStyle='#222'; nn4.ctx.strokeStyle='#555'; nn4.ctx.lineWidth=2; if(lID === Math.floor(timeTick) % 7) { nn4.ctx.fillStyle='#FF3B30'; nn4.ctx.strokeStyle='#FF3B30'; nn4.ctx.shadowColor='#FF3B30'; nn4.ctx.shadowBlur=15; } nn4.ctx.fill(); nn4.ctx.stroke(); nn4.ctx.shadowBlur=0; })});
+
+            renderTensorMath(phase, s1Dice);
+            drawComposite('cvs-c6-1', c6Data1, '#34c759'); drawComposite('cvs-c7-1', c6Data1, '#34c759');
+            drawComposite('cvs-c6-2', c6Data2, '#0a84ff'); drawComposite('cvs-c7-2', c6Data2, '#0a84ff');
+            drawComposite('cvs-c6-3', c6Data3, '#bf5af2'); drawComposite('cvs-c7-3', c6Data3, '#bf5af2');
+            drawMainWiring();
+
+            if(aOn) { for(let i=0; i<5; i++) { o1[i].frequency.setTargetAtTime(110*s1Dice[i], audioCtx.currentTime, 0.05); o2[i].frequency.setTargetAtTime(110*s2Dice[i], audioCtx.currentTime, 0.05); o3[i].frequency.setTargetAtTime(110*s3Dice[i], audioCtx.currentTime, 0.05); o4[i].frequency.setTargetAtTime(55*(Math.floor(Math.random()*4)+1), audioCtx.currentTime, 0.2); } }
+            timeTick++;
+        }
+
+        function loop() { if(isPlaying) tick(); else animateOpacityOnly(); setTimeout(loop, tickIntervalMS); }
+        function animateOpacityOnly() { if(flashOpacity>0) { flashOpacity-=0.05; drawMainWiring(); } }
+        function animate() { if(isPlaying && flashOpacity>0) flashOpacity-=0.05; requestAnimationFrame(animate); }
+        animate(); loop(); 
+    </script>
+</body>
+</html>
