@@ -10,9 +10,6 @@ The architecture is compiled and deployed live via GitHub Pages.
 
 * **[The Core Ecosystem (Bio Brain Matrix)](https://norayr-m.github.io/DRT-Encoder-Brain/)**  
   A biological cellular visualization (HPA Axis simulation) mapping structural network secretions to continuous amplitude generation and hexagonal civilization swarms. Features dynamic Bach BWV 847 Fourier evaluation routines triggering localized state pulses.
-  
-* **[The 35Z Tensor Sphere](https://norayr-m.github.io/DRT-Encoder-Brain/rank-sphere.html)**  
-  A mathematically structured 3D spatial interface demonstrating distributed graph node dependencies, constellation formations, and real-time feed-forward visualization. 
 
 ## Technical Capabilities
 - **Mathematical Canvas Rendering:** Low-latency nested hexagonal logic bounds (`Hexagonal Beehive` civilizations) mapped natively in `HTML5 Canvas`.
