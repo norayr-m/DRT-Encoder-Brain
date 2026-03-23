@@ -295,6 +295,7 @@
         }
 
         let bloodBuffer = Array(250).fill(0);
+        let flyingBees = [];
 
         function renderLoop() {
             bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
@@ -331,6 +332,9 @@
                 if(n.active) {
                     bgCtx.setLineDash([10, 20]);
                     bgCtx.lineDashOffset = -(timeTick * (n.hz/100));
+                    if (Math.random() < 0.1) {
+                        flyingBees.push({ x: nx, y: ny, tx: cx, ty: cy, p: 0, s: 0.005 + (n.hz/60000), c: n.color, seed: Math.random() * 10 });
+                    }
                 } else {
                     bgCtx.setLineDash([]);
                 }
@@ -348,7 +352,31 @@
                     bulb.style.borderColor = '#555';
                     bulb.innerText = '';
                 }
-            });
+            }
+
+            // DRAW AND UPDATE FLYING BEES
+            for (let i = flyingBees.length - 1; i >= 0; i--) {
+                let b = flyingBees[i];
+                b.p += b.s;
+                if (b.p >= 1) {
+                    flyingBees.splice(i, 1);
+                    continue;
+                }
+                let curX = b.x + (b.tx - b.x) * b.p;
+                let curY = b.y + (b.ty - b.y) * b.p;
+                let angle = Math.atan2(b.ty - b.y, b.tx - b.x);
+                let wobble = Math.sin(b.p * Math.PI * (10 + b.seed)) * 10; 
+                curX += Math.cos(angle + Math.PI/2) * wobble;
+                curY += Math.sin(angle + Math.PI/2) * wobble;
+
+                bgCtx.beginPath();
+                bgCtx.arc(curX, curY, 2.5, 0, Math.PI*2);
+                bgCtx.fillStyle = '#fff';
+                bgCtx.shadowColor = b.c;
+                bgCtx.shadowBlur = 12;
+                bgCtx.fill();
+                bgCtx.shadowBlur = 0;
+            }
 
             bloodBuffer.push(superimposedValue);
             bloodBuffer.shift();
