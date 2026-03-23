@@ -86,17 +86,6 @@
         .exp-title { font-size: 18px; font-weight: bold; color: #fff;}
         .exp-text { font-size: 14px; color: #bbb; line-height: 1.6;}
         .exp-diagram { display: flex; gap: 10px; margin-top: 15px; padding: 10px; background: #000; border-radius: 8px; border: 1px dashed #444; align-items:center; justify-content:center; color:#555; font-size:12px;}
-
-        /* PAPER MODAL UI */
-        .paper-content { background: #fdfdfd; color: #111; font-family: 'Times New Roman', serif; border-radius: 4px; width: 80%; max-width: 900px; height: 85vh; padding: 40px 60px; box-shadow: 0 0 50px rgba(0,0,0,0.8); overflow-y: auto; display: flex; flex-direction: column; gap: 20px;}
-        .paper-title { font-size: 24px; font-weight: bold; text-align: center; margin-bottom: 10px;}
-        .paper-author { font-size: 16px; text-align: center; margin-bottom: 20px;}
-        .paper-abstract { font-size: 14px; font-style: italic; margin: 0 40px 20px 40px; text-align: justify;}
-        .paper-section { font-size: 18px; font-weight: bold; margin-top: 20px; border-bottom: 1px solid #ccc; padding-bottom: 5px;}
-        .paper-subsection { font-size: 16px; font-weight: bold; margin-top: 15px;}
-        .paper-text { font-size: 15px; line-height: 1.6; text-align: justify;}
-        .math-eq { text-align: center; margin: 15px 0; font-size: 18px;}
-        .paper-close-btn { background: none; border: none; color: #ff3b30; font-size: 32px; cursor: pointer; font-weight: bold;}
     </style>
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
@@ -106,7 +95,6 @@
             <div>DRT: 7-COLUMN SIGNAL TOPOLOGY QED</div>
             <div style="display:flex; gap:10px;">
                 <button class="explain-btn" id="openModalBtn">EXPLAIN ARCHITECTURE</button>
-                <button class="explain-btn" id="openPaperBtn" style="border-color:#0a84ff; color:#0a84ff;">FORMAL PAPER</button>
             </div>
         </div>
         <!-- GLOBAL UNIFIED DRT TOPOLOGY NAV -->
@@ -174,42 +162,6 @@
             
         </div>
     </div>
-
-    <!-- PAPER MODAL -->
-    <div class="modal-overlay" id="paperModal">
-        <div class="paper-content">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-                <div style="display:flex; gap:15px;">
-                    <a href="Article_Harmonic_Generator.pdf" target="_blank" style="padding: 5px 10px; background: #eee; border:1px solid #ccc; color:#333; text-decoration:none; font-family:monospace; font-size:12px; border-radius:4px;">📥 PDF</a>
-                    <a href="Article_Harmonic_Generator.tex" target="_blank" style="padding: 5px 10px; background: #eee; border:1px solid #ccc; color:#333; text-decoration:none; font-family:monospace; font-size:12px; border-radius:4px;">📥 LaTeX</a>
-                </div>
-                <button class="paper-close-btn" id="closePaperBtn">&times;</button>
-            </div>
-            
-            <div class="paper-title">Simplicial Monotonicity & The Harmonic Generator<br><span style="font-size:18px; font-weight:normal;">A Deterministic Topological Framework for Distributed Signal Engineering</span></div>
-            <div class="paper-author">Norayr / Minky<br>Hive Council<br>March 22, 2026</div>
-            
-            <div class="paper-abstract">
-                <strong>Abstract.</strong> This architecture outlines the deterministic mapping of a low-level continuous hardware clock into a fully represented \( 5 \times 7 \) topological Feed-Forward matrix, bypassing standard backpropagation loops in favor of monotonic simplicial generation. By treating localized neural network layers as equivalent algebraic group operants (\( G \times M \to M \)), we define a strictly deterministic logic cascade that resolves phase oscillation directly into bounded physical harmonics. We present the 5-tier translational equivalence that maps discrete integer arrays into dynamic linear algebra tensors.
-            </div>
-
-            <div class="paper-section">1. Introduction</div>
-            <div class="paper-text">Modern distributed intelligence models suffer from latency scaling due to recursive validation checks. The Harmonic Generator QED abandons non-deterministic prediction, positing instead a Socratic truth extraction model reliant upon a shared crystal clock. The system is formalized as a sequence \( E(t) = e^{-i\omega t} \), distributing the structural rotation across the Hive in synchronized pulses.</div>
-
-            <div class="paper-section">2. The 5-Tier Translational Hierarchy</div>
-            <div class="paper-text">We utilize Patrick Winston's pedagogical structuring to validate the equivalence of the mathematical mappings:</div>
-
-            <div class="paper-subsection">2.1 Phase 1: Discrete Logic Pipeline</div>
-            <div class="paper-text">The signal initiates within a generic Lookup Table (LUT). The mapping \( f: S^1 \to \mathbb{Z}^5 \) operates as a 4-step sequence:<br>
-            1. \( L_{phase} \): Discretization of continuous Euler time.<br>
-            2. \( L_{id} \): Static state mapping.<br>
-            3. \( L_{mat} \): Hardware state constraint.<br>
-            4. \( L_{dice} \): Deterministic weight extraction.</div>
-
-            <div class="paper-subsection">2.2 Phase 2: Abstract Group Operations</div>
-            <div class="paper-text">The discrete steps operate fundamentally as actions upon a mathematical group \( G \). The static phase transition \( x_t \to x_{t+1} \) can be accurately represented as symmetric rotation matrices across the set \( V \):
-                <div class="math-eq">$$ x_{t+1} = \Phi_g (x_t) = (x_t - g) \pmod 7 + 1 $$</div>
-            </div>
 
             <div class="paper-subsection">2.3 Phase 3 & 4: Topological Expansion</div>
             <div class="paper-text">The algebraic shift operations natively expand into Deep Feed-Forward hidden layers. By instantiating a Matrix operator \( W \in \mathbb{R}^{n \times m} \) and applying common non-linear filters \( \sigma(x) \), we visualize the explicit equivalency. A 7-depth neural network graph represents the exact temporal states of the discrete cascade simultaneously in space.</div>
@@ -325,14 +277,9 @@
         const modal = document.getElementById('explainerModal');
         document.getElementById('openModalBtn').addEventListener('click', () => modal.style.display = 'flex');
         document.getElementById('closeModalBtn').addEventListener('click', () => modal.style.display = 'none');
-        
-        const pModal = document.getElementById('paperModal');
-        document.getElementById('openPaperBtn').addEventListener('click', () => pModal.style.display = 'flex');
-        document.getElementById('closePaperBtn').addEventListener('click', () => pModal.style.display = 'none');
 
         window.addEventListener('click', (e) => { 
             if(e.target === modal) modal.style.display = 'none';
-            if(e.target === pModal) pModal.style.display = 'none';
         });
 
         // GLOBALS
