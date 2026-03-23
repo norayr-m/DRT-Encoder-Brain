@@ -7,38 +7,38 @@
     <style>
         body { margin: 0; background: #0b0c10; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
         .header { position: absolute; top: 20px; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #fff; z-index: 50; text-align: center;}
-        .sub-header { font-size: 11px; color: #34c759; letter-spacing: 2px; margin-top: 5px; }
+        .sub-header { font-size: 11px; color: #0a84ff; letter-spacing: 2px; margin-top: 5px; }
         
         .nav-link { border: 1px solid; border-radius: 3px; padding: 6px 12px; font-size: 11px; cursor: pointer; text-decoration: none; font-weight: bold; pointer-events: auto; display: inline-block;}
         .nav-link:hover { background: rgba(255,255,255,0.1); }
         
         .controls { position: absolute; bottom: 30px; z-index: 50; display: flex; gap: 15px;}
-        .btn { padding: 8px 20px; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-family: monospace; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .btn { padding: 8px 20px; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 0px; font-family: monospace; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s;}
         .btn:hover { background: rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(255,255,255,0.2);}
 
         /* GRAPH CONTAINER */
         #graph-container { position: relative; width: 800px; height: 750px; z-index: 10; margin-top: 30px;}
         
-        .node { position: absolute; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; z-index: 20;}
+        .node { position: absolute; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; z-index: 20;}
         .n-title { font-weight: bold; font-size: 12px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;}
         .n-sub { font-size: 9px; color: #aaa;}
         .n-val { font-size: 20px; font-weight: bold; margin-top: 5px;}
-        .n-canvas { width: 120px; height: 120px; margin-top: 10px; border-radius: 4px; }
+        .n-canvas { width: 120px; height: 120px; margin-top: 10px; border-radius: 0px; }
 
         /* PERIPHERAL NODES (Hex style via transparent bg) */
         .outer-node { width: 160px; height: 180px; cursor: pointer; }
         .outer-node:hover { transform: scale(1.05); }
 
         #node-hypo { top: 10px; left: 120px; color: #0a84ff;}
-        #node-pit { top: 10px; right: 120px; color: #bf5af2;}
-        #node-adr { bottom: 10px; left: 320px; color: #ffd60a;}
+        #node-pit { top: 10px; right: 120px; color: #0a84ff;}
+        #node-adr { bottom: 10px; left: 320px; color: #0a84ff;}
 
         /* CENTRAL NODE */
-        #node-center { top: 260px; left: 280px; width: 240px; height: 240px; border: 2px solid #34c759; background: rgba(52,199,89,0.05); color: #34c759; box-shadow: 0 0 40px rgba(0,0,0,0.8);}
-        .center-canvas { width: 180px; height: 60px; margin-top: 15px; border-radius: 6px; background: rgba(0,0,0,0.6); border: 1px solid rgba(52,199,89,0.3);}
+        #node-center { top: 260px; left: 280px; width: 240px; height: 240px; border: 2px solid #0a84ff; background: rgba(10,132,255,0.05); color: #0a84ff; box-shadow: 0 0 40px rgba(0,0,0,0.8);}
+        .center-canvas { width: 180px; height: 60px; margin-top: 15px; border-radius: 0px; background: rgba(0,0,0,0.6); border: 1px solid rgba(10,132,255,0.3);}
         
         .fft-readout { display: flex; gap: 10px; margin-top: 15px; width: 80%; justify-content: center;}
-        .fft-bulb { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #555; background: #222; transition: 0.1s;}
+        .fft-bulb { width: 12px; height: 12px; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); border: 1px solid #555; background: #222; transition: 0.1s;}
 
         #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
         .toggle-hint { font-size: 8px; color: #555; position: absolute; bottom: 0px; }
@@ -53,7 +53,7 @@
             <a href="2026-03-23_-generator-NM_v01.html" class="nav-link" style="color:#ff3b30; border-color:#ff3b30;">01 COMPOSER</a>
             <a href="2026-03-23_-scanner-NM_v01.html" class="nav-link" style="color:#ff9f0a; border-color:#ff9f0a;">02 SCANNER</a>
             <a href="2026-03-23_-pipeline-NM_v01.html" class="nav-link" style="color:#e07060; border-color:#e07060;">03 PIPELINE</a>
-            <a href="2026-03-23_-cell_simulator-NM_v01.html" class="nav-link" style="color:#34c759; border-color:#34c759; background:rgba(52,199,89,0.1);">04 BIO BRAIN</a>
+            <a href="2026-03-23_-cell_simulator-NM_v01.html" class="nav-link" style="color:#0a84ff; border-color:#0a84ff; background:rgba(10,132,255,0.1);">04 BIO BRAIN</a>
             <a href="2026-03-23_-harmonic_solver-NM_v01.html" class="nav-link" style="color:#0a84ff; border-color:#0a84ff;">05 ORBITAL SOLVER</a>
             <a href="2026-03-23_-supernova_solver-NM_v01.html" class="nav-link" style="color:#d0b060; border-color:#d0b060;">06 SUPERNOVA 3D</a>
         </div>
@@ -101,11 +101,11 @@
                 </div>
                 <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
                     <div class="fft-bulb" id="bulb-pit"></div>
-                    <span style="font-size:8px; color:#bf5af2;">ACTH</span>
+                    <span style="font-size:8px; color:#0a84ff;">ACTH</span>
                 </div>
                 <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
                     <div class="fft-bulb" id="bulb-adr"></div>
-                    <span style="font-size:8px; color:#ffd60a;">CORT</span>
+                    <span style="font-size:8px; color:#0a84ff;">CORT</span>
                 </div>
             </div>
         </div>
@@ -133,8 +133,8 @@
         // GRAPH DATA
         const nodes = {
             'hypo': { active: false, hz: defaultHz.hypo, color: '#0a84ff', el: document.getElementById('node-hypo'), cvs: document.getElementById('cvs-hypo') },
-            'pit':  { active: false, hz: defaultHz.pit,  color: '#bf5af2', el: document.getElementById('node-pit'), cvs: document.getElementById('cvs-pit') },
-            'adr':  { active: false, hz: defaultHz.adr,  color: '#ffd60a', el: document.getElementById('node-adr'), cvs: document.getElementById('cvs-adr') }
+            'pit':  { active: false, hz: defaultHz.pit,  color: '#0a84ff', el: document.getElementById('node-pit'), cvs: document.getElementById('cvs-pit') },
+            'adr':  { active: false, hz: defaultHz.adr,  color: '#0a84ff', el: document.getElementById('node-adr'), cvs: document.getElementById('cvs-adr') }
         };
 
         let audioCtx;
@@ -388,8 +388,8 @@
             const anyActive = Object.values(nodes).some(n => n.active);
 
             bCtx.beginPath();
-            bCtx.strokeStyle = anyActive ? '#34c759' : 'rgba(255,255,255,0.1)';
-            bCtx.shadowColor = anyActive ? '#34c759' : 'transparent';
+            bCtx.strokeStyle = anyActive ? '#0a84ff' : 'rgba(255,255,255,0.1)';
+            bCtx.shadowColor = anyActive ? '#0a84ff' : 'transparent';
             bCtx.shadowBlur = anyActive ? 15 : 0;
             bCtx.lineWidth = 2;
 
