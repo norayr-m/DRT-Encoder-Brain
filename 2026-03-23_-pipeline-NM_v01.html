@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRT: The Bach BWV 847 Pipeline</title>
+    <style>
+        body { margin: 0; background: #0b0c10; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .header { position: absolute; top: 20px; text-transform: uppercase; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #fff; text-shadow: 0 0 20px rgba(255,255,255,0.5); z-index: 50; display: flex; flex-direction: column; align-items: center;}
+        .sub-header { font-size: 10px; color: #0a84ff; letter-spacing: 2px; margin-top: 5px; }
+        
+        .controls { position: absolute; bottom: 30px; z-index: 50; display: flex; gap: 20px;}
+        .btn { padding: 12px 30px; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-family: monospace; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .btn:hover { background: rgba(255,255,255,0.1); box-shadow: 0 0 20px rgba(255,255,255,0.2);}
+        .play-btn { border-color: #34c759; color: #34c759; }
+        .play-btn:hover { background: #34c759; color: #000; box-shadow: 0 0 30px #34c759; }
+
+        .pipeline-container { display: flex; align-items: center; justify-content: center; width: 95%; max-width: 1800px; height: 75vh; gap: 40px; }
+
+        /* PANELS */
+        .panel { display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 100%; border-radius: 12px; position: relative; padding: 20px 0; width: 300px; }
+        .panel-title { font-size: 14px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; position: absolute; top: -10px; padding: 5px 15px; border-radius: 5px; background: #0b0c10;}
+        
+        .composer { border: 2px solid rgba(10, 132, 255, 0.4); box-shadow: inset 0 0 50px rgba(10, 132, 255, 0.05); }
+        .composer .panel-title { color: #0a84ff; border: 1px solid #0a84ff; }
+        
+        .decomposer { border: 2px solid rgba(255, 59, 48, 0.4); box-shadow: inset 0 0 50px rgba(255, 59, 48, 0.05); }
+        .decomposer .panel-title { color: #ff3b30; border: 1px solid #ff3b30; }
+
+        /* ETHER */
+        .ether { flex-grow: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border-radius: 12px; background: rgba(0,0,0,0.3);}
+        .ether-title { font-size: 12px; color: #bf5af2; font-weight: bold; letter-spacing: 4px; position: absolute; top: 20px;}
+        .ether-canvas { width: 100%; height: 200px; }
+
+        /* DATA PIPES (NOTES) */
+        .data-pipe { width: 80%; height: 180px; border: 1px dashed rgba(255,255,255,0.1); border-radius: 8px; position: relative; overflow: hidden; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center;}
+        .pipe-label { position: absolute; font-size: 9px; color: #555; left: 5px; top: 5px; z-index: 10;}
+        
+        .note-bubble { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; position: absolute; text-shadow: 0 0 10px rgba(0,0,0,0.5); border: 2px solid; transition: transform 0.2s;}
+        
+        /* MATRIX LOGIC BOXES */
+        .matrix-box { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 80%; padding: 20px 0; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+        .matrix-title { font-size: 10px; color: #aaa; margin-bottom: 15px;}
+        
+        .dice-display { width: 60px; height: 60px; border-radius: 10px; background: #222; border: 2px solid #555; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; position: relative;}
+        .dot { width: 8px; height: 8px; background: #fff; border-radius: 50%; position: absolute; box-shadow: 0 0 10px #fff;}
+        .d-center{top:50%;left:50%;transform:translate(-50%,-50%);} .d-tl{top:12px;left:12px;} .d-tr{top:12px;right:12px;} .d-ml{top:50%;left:12px;transform:translateY(-50%);} .d-mr{top:50%;right:12px;transform:translateY(-50%);} .d-bl{bottom:12px;left:12px;} .d-br{bottom:12px;right:12px;}
+
+        /* FFT EQ BARS */
+        .fft-bars { display: flex; gap: 4px; align-items: flex-end; height: 60px; }
+        .fft-bar { width: 15px; background: rgba(255, 59, 48, 0.2); border-radius: 2px; border-top: 2px solid #ff3b30; transition: height 0.1s;}
+
+        #bgWiring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        THE DISTRIBUTED RECONSTRUCTION THEOREM
+        <div class="sub-header">TRANSMITTING BWV 847 ACROSS SOCRATIC MATRICES</div>
+        
+        <!-- GLOBAL UNIFIED DRT TOPOLOGY NAV -->
+        <div style="display:flex; gap:10px; margin-top:20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; width:100%; justify-content:center;">
+            <button class="btn" onclick="window.location.href='2026-03-23_-generator-NM_v01.html'" style="border-color:#ff3b30; color:#ff3b30; padding:8px 16px; font-size:14px;">01 COMPOSER</button>
+            <button class="btn" onclick="window.location.href='2026-03-23_-scanner-NM_v01.html'" style="border-color:#ff9f0a; color:#ff9f0a; padding:8px 16px; font-size:14px;">02 SCANNER</button>
+            <button class="btn" onclick="window.location.href='2026-03-23_-pipeline-NM_v01.html'" style="border-color:#e07060; color:#e07060; font-weight:bold; padding:8px 16px; font-size:14px; background:rgba(224,112,96,0.1);">03 PIPELINE</button>
+            <button class="btn" onclick="window.location.href='2026-03-23_-cell_simulator-NM_v01.html'" style="border-color:#34c759; color:#34c759; padding:8px 16px; font-size:14px;">04 BIO BRAIN</button>
+            <button class="btn" onclick="window.location.href='2026-03-23_-harmonic_solver-NM_v01.html'" style="border-color:#0a84ff; color:#0a84ff; padding:8px 16px; font-size:14px;">05 ORBITAL SOLVER</button>
+            <button class="btn" onclick="window.location.href='2026-03-23_-supernova_solver-NM_v01.html'" style="border-color:#d0b060; color:#d0b060; padding:8px 16px; font-size:14px;">06 SUPERNOVA 3D</button>
+        </div>
+    </div>
+
+    <canvas id="bgWiring"></canvas>
+
+    <div class="pipeline-container">
+        
+        <!-- THE COMPOSER -->
+        <div class="panel composer" id="c-panel">
+            <div class="panel-title">1. COMPOSER</div>
+            
+            <div class="data-pipe" id="pipe-in">
+                <div class="pipe-label">SOCRATIC INPUT (BACH BWV 847)</div>
+                <!-- JS Populates Notes here -->
+            </div>
+
+            <div class="matrix-box" id="c-matrix">
+                <div class="matrix-title">SOCRATIC WEIGHT MATRIX</div>
+                <div class="dice-display" id="c-dice" style="border-color:#0a84ff; background:rgba(10,132,255,0.1);"></div>
+            </div>
+
+            <div class="data-pipe" style="height:80px; border:none; background:none;">
+                <div class="pipe-label" style="color:#0a84ff;">GENERATOR SINE (Hz)</div>
+                <div id="c-hz" style="font-size: 24px; font-weight: bold; color: #0a84ff; text-shadow: 0 0 15px #0a84ff;">--- Hz</div>
+            </div>
+        </div>
+
+        <!-- THE ETHER -->
+        <div class="ether" id="e-panel">
+            <div class="ether-title">THE ETHER (HORIZONTALLY DECOUPLED)</div>
+            <canvas class="ether-canvas" id="etherCanvas"></canvas>
+            <div style="position:absolute; bottom:20px; font-size:10px; color:#555;">NO METADATA. RAW WAVEFORM ONLY.</div>
+        </div>
+
+        <!-- THE DE-COMPOSER -->
+        <div class="panel decomposer" id="d-panel">
+            <div class="panel-title">2. DE-COMPOSER (SCANNER)</div>
+            
+            <div class="data-pipe" style="height:80px; border:none; background:none;">
+                <div class="pipe-label" style="color:#ff3b30;">FFT RECONSTRUCTION MATCH</div>
+                <div id="d-hz" style="font-size: 24px; font-weight: bold; color: #ff3b30; text-shadow: 0 0 15px #ff3b30;">--- Hz</div>
+            </div>
+
+            <div class="matrix-box" id="d-matrix">
+                <div class="matrix-title">INVERSE FFT TO TOPOLOGICAL WEIGHTS</div>
+                <div class="fft-bars" id="fftBox">
+                    <div class="fft-bar" id="f-1" style="height:10px;"></div>
+                    <div class="fft-bar" id="f-2" style="height:10px;"></div>
+                    <div class="fft-bar" id="f-3" style="height:10px;"></div>
+                    <div class="fft-bar" id="f-4" style="height:10px;"></div>
+                    <div class="fft-bar" id="f-5" style="height:10px;"></div>
+                    <div class="fft-bar" id="f-6" style="height:10px;"></div>
+                    <div class="fft-bar" id="f-7" style="height:10px;"></div>
+                </div>
+                <div class="dice-display" id="d-dice" style="border-color:#ff3b30; background:rgba(255,59,48,0.1); margin-top:15px;"></div>
+            </div>
+
+            <div class="data-pipe" id="pipe-out">
+                <div class="pipe-label">RECONSTRUCTED SOCRATIC TRUTH</div>
+                <!-- JS Populates Notes here -->
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="controls">
+        <button class="btn play-btn" id="playBtn">IGNITE PIPELINE</button>
+        <button class="btn" id="muteBtn" style="border-color:#ff9f0a; color:#ff9f0a;">MUTE AUDIO</button>
+    </div>
+
+    <script>
+        // CORE BWV 847 SUBJECT DATA (C MINOR)
+        // Note: C4 D4 Eb4 F4 G4 Ab4 B3
+        // Idx:  1  2  3   4  5  6   7
+        const freqMap = {
+            1: { note: 'C4', hz: 261.63, color: '#32d74b' },
+            2: { note: 'D4', hz: 293.66, color: '#0a84ff' },
+            3: { note: 'Eb4', hz: 311.13, color: '#bf5af2' },
+            4: { note: 'F4', hz: 349.23, color: '#ff9f0a' },
+            5: { note: 'G4', hz: 392.00, color: '#ffd60a' },
+            6: { note: 'Ab4', hz: 415.30, color: '#ff375f' },
+            7: { note: 'B3', hz: 246.94, color: '#8e8e93' },
+            0: { note: 'REST', hz: 0, color: '#222' }
+        };
+
+        const bachSequence = [1, 0, 7, 0, 1, 0, 5, 0, 6, 1, 7, 1, 2, 5, 0, 1, 7, 1, 2, 4, 3, 2, 3, 0];
+        
+        let playhead = 0;
+        let isPlaying = false;
+        let timeTick = 0;
+        let activeNote = 0;
+
+        // UI ELEMENTS
+        const pipeIn = document.getElementById('pipe-in');
+        const pipeOut = document.getElementById('pipe-out');
+        const etherCvs = document.getElementById('etherCanvas');
+        const etherCtx = etherCvs.getContext('2d');
+        const bgCvs = document.getElementById('bgWiring');
+        const bgCtx = bgCvs.getContext('2d');
+
+        // AUDIO
+        let audioCtx; let osc; let gainNode;
+
+        document.getElementById('playBtn').addEventListener('click', (e) => {
+            if(!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                osc = audioCtx.createOscillator();
+                gainNode = audioCtx.createGain();
+                gainNode.gain.value = 0;
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                osc.start();
+            }
+            isPlaying = !isPlaying;
+            e.target.innerText = isPlaying ? "PAUSE PIPELINE" : "IGNITE PIPELINE";
+            if(audioCtx.state === 'suspended' && isPlaying) audioCtx.resume();
+        });
+
+        let isMuted = false;
+        document.getElementById('muteBtn').addEventListener('click', (e) => {
+            isMuted = !isMuted;
+            e.target.innerText = isMuted ? "UNMUTE AUDIO" : "MUTE AUDIO";
+            if(audioCtx && isPlaying) {
+                 if (isMuted) gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+                 else gainNode.gain.setTargetAtTime(0.1, audioCtx.currentTime, 0.05);
+            }
+        });
+
+        function getDiceDots(val) {
+            if(val===1) return `<div class="dot d-center"></div>`;
+            if(val===2) return `<div class="dot d-tl"></div><div class="dot d-br"></div>`;
+            if(val===3) return `<div class="dot d-tl"></div><div class="dot d-center"></div><div class="dot d-br"></div>`;
+            if(val===4) return `<div class="dot d-tl"></div><div class="dot d-tr"></div><div class="dot d-bl"></div><div class="dot d-br"></div>`;
+            if(val===5) return `<div class="dot d-tl"></div><div class="dot d-tr"></div><div class="dot d-center"></div><div class="dot d-bl"></div><div class="dot d-br"></div>`;
+            if(val===6) return `<div class="dot d-tl"></div><div class="dot d-ml"></div><div class="dot d-bl"></div><div class="dot d-tr"></div><div class="dot d-mr"></div><div class="dot d-br"></div>`;
+            if(val===7) return `<div class="dot d-tl"></div><div class="dot d-ml"></div><div class="dot d-bl"></div><div class="dot d-tr"></div><div class="dot d-mr"></div><div class="dot d-br"></div><div class="dot d-center"></div>`;
+            return ``;
+        }
+
+        // Animated Notes Arrays
+        let inNotes = []; let outNotes = [];
+        
+        function spawnNote(val, targetArray, htmlContainer) {
+            if(val === 0) return;
+            const data = freqMap[val];
+            const el = document.createElement('div');
+            el.className = 'note-bubble';
+            el.style.backgroundColor = `rgba(0,0,0,0.8)`;
+            el.style.borderColor = data.color;
+            el.style.color = data.color;
+            el.style.boxShadow = `0 0 15px ${data.color}55`;
+            el.innerText = data.note;
+            el.style.top = `-50px`;
+            htmlContainer.appendChild(el);
+            targetArray.push({el: el, y: -50, val: val, life: 1.0});
+        }
+
+        function updatePipes() {
+            // Update falling notes
+            [inNotes, outNotes].forEach(arr => {
+                for(let i=arr.length-1; i>=0; i--) {
+                    arr[i].y += 3;
+                    arr[i].el.style.top = `${arr[i].y}px`;
+                    if(arr[i].y > 200) {
+                        arr[i].el.remove();
+                        arr.splice(i, 1);
+                    }
+                }
+            });
+        }
+
+        let etherBuffer = Array(200).fill(0);
+
+        function drawEther(hz, color) {
+            etherCvs.width = etherCvs.clientWidth; etherCvs.height = etherCvs.clientHeight;
+            etherCtx.clearRect(0,0,etherCvs.width,etherCvs.height);
+            
+            // Generate traveling sine wave segment
+            const amp = hz > 0 ? 40 : 2;
+            const freq = hz > 0 ? hz / 100 : 0.5;
+            const newPoint = Math.sin(timeTick * freq) * amp;
+            
+            etherBuffer.unshift(newPoint);
+            etherBuffer.pop();
+
+            etherCtx.beginPath();
+            etherCtx.strokeStyle = color;
+            etherCtx.lineWidth = 3;
+            etherCtx.shadowColor = color;
+            etherCtx.shadowBlur = 15;
+
+            const dx = etherCvs.width / etherBuffer.length;
+            for(let i=0; i<etherBuffer.length; i++) {
+                const x = i * dx;
+                const y = etherCvs.height/2 + etherBuffer[i] + (Math.random()*2 - 1)*(hz>0?2:0);
+                if(i===0) etherCtx.moveTo(x,y); else etherCtx.lineTo(x,y);
+            }
+            etherCtx.stroke();
+            etherCtx.shadowBlur = 0;
+        }
+
+        function drawWiring() {
+            bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
+            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
+            if(!isPlaying || activeNote === 0) return;
+
+            const color = freqMap[activeNote].color;
+            
+            const cMat = document.getElementById('c-matrix').getBoundingClientRect();
+            const dMat = document.getElementById('d-matrix').getBoundingClientRect();
+            const eCan = document.getElementById('etherCanvas').getBoundingClientRect();
+            
+            bgCtx.beginPath();
+            bgCtx.moveTo(cMat.right, cMat.top + cMat.height/2);
+            bgCtx.lineTo(eCan.left, eCan.top + eCan.height/2);
+            bgCtx.strokeStyle = `${color}`;
+            bgCtx.lineWidth = 2;
+            bgCtx.stroke();
+
+            bgCtx.beginPath();
+            bgCtx.moveTo(eCan.right, eCan.top + eCan.height/2);
+            bgCtx.lineTo(dMat.left, dMat.top + dMat.height/2);
+            bgCtx.stroke();
+        }
+
+        function updateScannerFFT(activeVal) {
+            for(let i=1; i<=7; i++) {
+                const bar = document.getElementById('f-'+i);
+                if(i === activeVal) {
+                    bar.style.height = `50px`;
+                    bar.style.backgroundColor = freqMap[i].color;
+                    bar.style.borderColor = '#fff';
+                    bar.style.boxShadow = `0 0 15px ${freqMap[i].color}`;
+                } else {
+                    bar.style.height = `${Math.random()*10 + 5}px`;
+                    bar.style.backgroundColor = `rgba(255,59,48,0.2)`;
+                    bar.style.borderColor = `#ff3b30`;
+                    bar.style.boxShadow = `none`;
+                }
+            }
+        }
+
+        // STEP SEQUENCER
+        setInterval(() => {
+            if(!isPlaying) return;
+            activeNote = bachSequence[playhead];
+            const data = freqMap[activeNote];
+            
+            // 1. COMPOSER INGESTS NOTE
+            if(activeNote !== 0) spawnNote(activeNote, inNotes, pipeIn);
+            document.getElementById('c-dice').innerHTML = getDiceDots(activeNote);
+            document.getElementById('c-dice').style.borderColor = data.color;
+            document.getElementById('c-hz').innerText = activeNote === 0 ? "--- Hz" : `${data.hz} Hz`;
+            document.getElementById('c-hz').style.color = data.color;
+
+            // 2. AUDIO SYNTH
+            if(activeNote !== 0 && audioCtx) {
+                osc.frequency.setValueAtTime(data.hz, audioCtx.currentTime);
+                gainNode.gain.setTargetAtTime(isMuted ? 0 : 0.1, audioCtx.currentTime, 0.02);
+            } else if(audioCtx) {
+                gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+            }
+
+            // 3. DE-COMPOSER EXTRACTS
+            // Simulate 100ms transmission delay logically by doing it now but visually reacting
+            document.getElementById('d-hz').innerText = activeNote === 0 ? "--- Math FFT" : `✓ ${data.hz} Hz`;
+            document.getElementById('d-hz').style.color = data.color;
+            updateScannerFFT(activeNote);
+            document.getElementById('d-dice').innerHTML = getDiceDots(activeNote);
+            document.getElementById('d-dice').style.borderColor = data.color;
+            if(activeNote !== 0) spawnNote(activeNote, outNotes, pipeOut);
+
+            playhead = (playhead + 1) % bachSequence.length;
+        }, 400); // 150 BPM 8th notes
+
+        function renderLoop() {
+            updatePipes();
+            const curData = freqMap[activeNote];
+            drawEther(curData.hz, curData.color);
+            drawWiring();
+            timeTick++;
+            requestAnimationFrame(renderLoop);
+        }
+        renderLoop();
+    </script>
+</body>
+</html>

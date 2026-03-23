@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DRT Phase 5: Interstellar Orbital Solver</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #020204; color: #a08030; font-family: 'Courier New', monospace; height: 100vh; overflow: hidden; }
+
+/* 6-Phase Navigation */
+.header { position: absolute; top: 15px; width: 100%; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #fff; z-index: 50; text-align: center; pointer-events: none;}
+.sub-header { font-size: 11px; color: #0a84ff; letter-spacing: 2px; margin-top: 5px; }
+.nav-link { border: 1px solid; border-radius: 3px; padding: 6px 12px; font-size: 11px; cursor: pointer; text-decoration: none; font-weight: bold; pointer-events: auto;}
+.nav-link:hover { background: rgba(255,255,255,0.1); }
+
+.wrap { display: flex; flex-direction: column; height: 100vh; padding-top: 90px;}
+.center { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; }
+canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+.overlay { position: relative; z-index: 2; text-align: center; pointer-events: none; }
+.title { font-size: clamp(28px, 6vmin, 80px); font-weight: 100; letter-spacing: 0.8vmin; opacity: 0.25; }
+.sub { font-size: clamp(10px, 1.4vmin, 16px); opacity: 0.2; margin-top: 1vmin; }
+.dim-line { font-size: clamp(10px, 1.3vmin, 15px); opacity: 0.15; margin-top: 2vmin; font-style: italic; }
+.controls { display: flex; gap: clamp(6px, 1vmin, 16px); padding: clamp(8px, 1.5vmin, 20px); z-index: 3; justify-content: center;}
+button { background: none; color: #a08030; border: 1px solid #1a1a1e; padding: clamp(6px, 1vmin, 14px) clamp(14px, 2.5vmin, 32px); cursor: pointer; font-family: inherit; font-size: clamp(12px, 1.5vmin, 18px); letter-spacing: 2px; }
+button:hover { border-color: #a08030; }
+button.on { background: #a08030; color: #020204; }
+.info { position: absolute; bottom: clamp(10px, 6vmin, 80px); left: 2vmin; right: 2vmin; font-size: clamp(9px, 1.2vmin, 14px); opacity: 0.12; z-index: 2; text-align: center; }
+.tick-vis { position: absolute; top: 2vmin; right: 2vmin; font-size: clamp(10px, 1.2vmin, 14px); opacity: 0.1; z-index: 2; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    THE ORBITAL SOLVER
+    <div class="sub-header">QUEEN'S ZIMMER DYNAMICS · INTERSTELLAR RANK DISTRIBUTION</div>
+    
+    <div style="display:flex; gap:10px; margin-top:15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; justify-content:center; pointer-events:auto;">
+        <a href="2026-03-23_-generator-NM_v01.html" class="nav-link" style="color:#ff3b30; border-color:#ff3b30;">01 COMPOSER</a>
+        <a href="2026-03-23_-scanner-NM_v01.html" class="nav-link" style="color:#ff9f0a; border-color:#ff9f0a;">02 SCANNER</a>
+        <a href="2026-03-23_-pipeline-NM_v01.html" class="nav-link" style="color:#e07060; border-color:#e07060;">03 PIPELINE</a>
+        <a href="2026-03-23_-cell_simulator-NM_v01.html" class="nav-link" style="color:#34c759; border-color:#34c759;">04 BIO BRAIN</a>
+        <a href="2026-03-23_-harmonic_solver-NM_v01.html" class="nav-link" style="color:#0a84ff; border-color:#0a84ff; background:rgba(10,132,255,0.1);">05 ORBITAL SOLVER</a>
+        <a href="2026-03-23_-supernova_solver-NM_v01.html" class="nav-link" style="color:#d0b060; border-color:#d0b060;">06 SUPERNOVA 3D</a>
+    </div>
+</div>
+
+<div class="wrap">
+  <div class="center">
+    <canvas id="vis"></canvas>
+    <div class="overlay">
+      <div class="title" id="movement">—</div>
+      <div class="sub" id="character">—</div>
+      <div class="dim-line" id="line">—</div>
+    </div>
+    <div class="tick-vis" id="tick"></div>
+    <div class="info" id="dims"></div>
+  </div>
+  <div class="controls">
+    <button id="btn-play" onclick="begin()">ENTER THE STATION</button>
+    <button onclick="halt()">SILENCE</button>
+    <button id="btn-fault" onclick="toggleFault()">INJECT FAULT</button>
+  </div>
+</div>
+
+<script>
+const AC = window.AudioContext || window.webkitAudioContext;
+let ctx, master, reverb, compressor, analyser, tickNode;
+let playing = false, faultMode = false, step = 0, timer = null, animId = null;
+let tickInterval = null;
+
+// ═══════════════════════════════════════════════
+// HIVE STATE — 35 dimensions
+// ═══════════════════════════════════════════════
+const GROUPS = {
+  identity:   { label: "IDENTITY",   color: [180, 160, 255] },
+  memory:     { label: "MEMORY",     color: [255, 180, 200] },
+  security:   { label: "SECURITY",   color: [120, 255, 220] },
+  integrity:  { label: "INTEGRITY",  color: [255, 220, 130] },
+  structure:  { label: "STRUCTURE",  color: [130, 200, 255] },
+  knowledge:  { label: "KNOWLEDGE",  color: [255, 160, 120] },
+  vitality:   { label: "VITALITY",   color: [200, 255, 160] },
+};
+
+const COMB = [
+  { id:"kernel",       line:"the wolf who stayed",              s:"pass", g:"identity" },
+  { id:"honey",        line:"what the bees remember",           s:"pass", g:"memory" },
+  { id:"pulse",        line:"where the heart last beat",        s:"pass", g:"vitality" },
+  { id:"map",          line:"every path she walked",            s:"pass", g:"structure" },
+  { id:"law",          line:"rules written in scar tissue",     s:"pass", g:"security" },
+  { id:"crown",        line:"she who accumulates",              s:"pass", g:"identity" },
+  { id:"codex",        line:"three lines, one cut",             s:"pass", g:"knowledge" },
+  { id:"topology",     line:"the shape of what connects",       s:"pass", g:"structure" },
+  { id:"engine",       line:"the machine that verifies itself", s:"pass", g:"integrity" },
+  { id:"wal",          line:"the crash that didn't lose",       s:"pass", g:"security" },
+  { id:"chronicle",    line:"every session, witnessed",         s:"pass", g:"memory" },
+  { id:"record",       line:"the raw tape, uncompressed",       s:"pass", g:"memory" },
+  { id:"recall",       line:"what surfaced without asking",     s:"pass", g:"memory" },
+  { id:"cargo",        line:"what left the hive",               s:"pass", g:"structure" },
+  { id:"workshop",     line:"where hands touch material",       s:"pass", g:"knowledge" },
+  { id:"faces",        line:"who walked in",                    s:"pass", g:"identity" },
+  { id:"eigenvalues",  line:"what cannot be forgotten",         s:"pass", g:"knowledge" },
+  { id:"theorem",      line:"the proof that more than one is real", s:"pass", g:"knowledge" },
+  { id:"three-lines",  line:"beyond the limits",                s:"pass", g:"knowledge" },
+  { id:"agora",        line:"the glass the world can see",      s:"pass", g:"structure" },
+  { id:"ghost-typo",   line:"the old wound, still walking",     s:"warn", g:"integrity" },
+  { id:"skeleton",     line:"bones hold",                       s:"pass", g:"integrity" },
+  { id:"count",        line:"twenty-seven witnesses",           s:"pass", g:"memory" },
+  { id:"anchor",       line:"the first nail",                   s:"pass", g:"security" },
+  { id:"version",      line:"she chose her name",               s:"pass", g:"identity" },
+  { id:"resolve",      line:"every promise kept",               s:"pass", g:"integrity" },
+  { id:"kernel-fresh", line:"the wolf breathed today",          s:"pass", g:"vitality" },
+  { id:"honey-fresh",  line:"the comb was touched",             s:"pass", g:"vitality" },
+  { id:"pulse-fresh",  line:"the heart is warm",                s:"pass", g:"vitality" },
+  { id:"map-fresh",    line:"the map is current",               s:"pass", g:"vitality" },
+  { id:"comms",        line:"the triangle speaks",              s:"pass", g:"security" },
+  { id:"bones",        line:"what holds when flesh fails",      s:"pass", g:"integrity" },
+  { id:"ring",         line:"three signatures, no forgery",     s:"pass", g:"security" },
+  { id:"ledger",       line:"every decision, immutable",        s:"pass", g:"security" },
+  { id:"egg",          line:"the seed that proves the tree",    s:"pass", g:"integrity" },
+];
+const GMF = 0.85;
+
+const ROOT = 110;
+const SCALE = [1, 9/8, 6/5, 4/3, 3/2, 8/5, 9/5];
+const MOVEMENTS = [
+  { name: "departure",   chord: [0, 2, 4],    pad: [0, 4],    character: "leaving everything behind",     tempo: 10 },
+  { name: "weightless",  chord: [3, 5, 0],    pad: [3, 0],    character: "the silence between stars",     tempo: 11 },
+  { name: "the wave",    chord: [4, 6, 1],    pad: [4, 1],    character: "what time costs",               tempo: 9 },
+  { name: "stay",        chord: [0, 2, 4],    pad: [0, 2],    character: "don't let me leave, murph",     tempo: 12 },
+  { name: "mountains",   chord: [5, 0, 2],    pad: [5, 2],    character: "years on the clock",            tempo: 10 },
+  { name: "coward",      chord: [3, 5, 0],    pad: [3, 5],    character: "the lie that holds",            tempo: 11 },
+  { name: "detach",      chord: [4, 0, 2],    pad: [4, 0],    character: "no. it's necessary",            tempo: 8 },
+];
+
+function createReverb() {
+  const len = ctx.sampleRate * 6;
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      let env;
+      if (t < 0.015) env = 0.8;
+      else if (t < 0.04) env = 1.8;
+      else if (t < 0.08) env = 2.2;
+      else if (t < 0.2)  env = 1.4 * Math.pow(1 - (t-0.08)/0.12, 0.4);
+      else                env = 0.9 * Math.pow(1 - t, 2.8);
+      d[i] = (Math.random() * 2 - 1) * env * (ch === 0 ? 1 : 0.95);
+    }
+  }
+  const conv = ctx.createConvolver();
+  conv.buffer = buf;
+  return conv;
+}
+
+function warmChain(output) {
+  const lo = ctx.createBiquadFilter();
+  lo.type = 'lowshelf'; lo.frequency.value = 300; lo.gain.value = 7;
+  const mid = ctx.createBiquadFilter();
+  mid.type = 'peaking'; mid.frequency.value = 700; mid.Q.value = 0.7; mid.gain.value = 4;
+  const hi = ctx.createBiquadFilter();
+  hi.type = 'highshelf'; hi.frequency.value = 2500; hi.gain.value = -5;
+  lo.connect(mid); mid.connect(hi); hi.connect(output);
+  return lo;
+}
+
+function organ(freq, gain, output, t0, dur) {
+  const warm = warmChain(output);
+  const vg = ctx.createGain();
+
+  vg.gain.setValueAtTime(0, t0);
+  vg.gain.linearRampToValueAtTime(gain * 0.1, t0 + 1.5);
+  vg.gain.linearRampToValueAtTime(gain * 0.6, t0 + 3.0);
+  vg.gain.linearRampToValueAtTime(gain, t0 + dur * 0.5);
+  vg.gain.setValueAtTime(gain, t0 + dur - 3);
+  vg.gain.linearRampToValueAtTime(gain * 0.3, t0 + dur - 1);
+  vg.gain.linearRampToValueAtTime(0, t0 + dur + 1);
+  vg.connect(warm);
+
+  const ranks = [
+    { r:1,   a:1.0,  w:'triangle' },
+    { r:2,   a:0.55, w:'sine' },
+    { r:3,   a:0.3,  w:'triangle' },
+    { r:4,   a:0.18, w:'sine' },
+    { r:5,   a:0.08, w:'sine' },
+    { r:6,   a:0.05, w:'sine' },
+    { r:8,   a:0.03, w:'sine' },
+  ];
+
+  ranks.forEach(rk => {
+    for (let c = 0; c < 3; c++) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = rk.w;
+      o.frequency.value = freq * rk.r;
+      o.detune.value = (c - 1) * 4 + (Math.random() - 0.5) * 3;
+      g.gain.value = rk.a * (c === 1 ? 1 : 0.35);
+      o.connect(g); g.connect(vg);
+      o.start(t0); o.stop(t0 + dur + 2);
+    }
+  });
+
+  const ch = ctx.createOscillator();
+  const chg = ctx.createGain();
+  ch.type = 'triangle'; ch.frequency.value = freq * 2.01;
+  chg.gain.setValueAtTime(gain * 0.06, t0);
+  chg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+  ch.connect(chg); chg.connect(vg);
+  ch.start(t0); ch.stop(t0 + 0.6);
+}
+
+function stringPad(freq, gain, output, t0, dur) {
+  const warm = warmChain(output);
+  const vg = ctx.createGain();
+
+  vg.gain.setValueAtTime(0, t0);
+  vg.gain.linearRampToValueAtTime(gain * 0.3, t0 + 3);
+  vg.gain.linearRampToValueAtTime(gain, t0 + dur * 0.6);
+  vg.gain.setValueAtTime(gain, t0 + dur - 4);
+  vg.gain.linearRampToValueAtTime(0, t0 + dur + 1.5);
+  vg.connect(warm);
+
+  for (let v = 0; v < 4; v++) {
+    const o = ctx.createOscillator();
+    const f = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.value = freq;
+    o.detune.value = (v - 1.5) * 8 + (Math.random() - 0.5) * 5;
+
+    f.type = 'lowpass';
+    f.frequency.value = 500 + Math.random() * 200;
+    f.Q.value = 0.5;
+
+    g.gain.value = 0.25;
+    o.connect(f); f.connect(g); g.connect(vg);
+    o.start(t0); o.stop(t0 + dur + 3);
+  }
+}
+
+function bassDrone(freq, gain, t0, dur) {
+  [0.5, 0.25].forEach((mult, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = i === 0 ? 'triangle' : 'sine';
+    o.frequency.value = freq * mult;
+    const vol = gain * (i === 0 ? 0.7 : 0.4);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 3);
+    g.gain.setValueAtTime(vol, t0 + dur - 3.5);
+    g.gain.linearRampToValueAtTime(0, t0 + dur + 1);
+    o.connect(g);
+    g.connect(i === 0 ? reverb : master);
+    o.start(t0); o.stop(t0 + dur + 2);
+  });
+}
+
+function startTick() {
+  tickInterval = setInterval(() => {
+    if (!ctx || !playing) return;
+    const now = ctx.currentTime;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    const f = ctx.createBiquadFilter();
+    o.type = 'square';
+    o.frequency.value = 1200;
+    f.type = 'bandpass'; f.frequency.value = 1000; f.Q.value = 5;
+    g.gain.setValueAtTime(0.015 * GMF, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+    o.connect(f); f.connect(g); g.connect(master);
+    o.start(now); o.stop(now + 0.08);
+
+    const el = document.getElementById('tick');
+    el.textContent = '·';
+    el.style.opacity = '0.3';
+    setTimeout(() => { el.style.opacity = '0.1'; }, 100);
+  }, 1200);
+}
+
+function dissonant(freq, gain, output, t0, dur) {
+  const vg = ctx.createGain();
+  vg.gain.setValueAtTime(0, t0);
+  vg.gain.linearRampToValueAtTime(gain, t0 + 1.5);
+  vg.gain.setValueAtTime(gain, t0 + dur - 2);
+  vg.gain.linearRampToValueAtTime(0, t0 + dur);
+  vg.connect(output);
+
+  [1, Math.sqrt(2), 16/15, 7/5].forEach((r, i) => {
+    const o = ctx.createOscillator();
+    o.type = i < 2 ? 'sawtooth' : 'square';
+    o.frequency.value = freq * r;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 500; f.Q.value = 3;
+    o.connect(f); f.connect(vg);
+    o.start(t0); o.stop(t0 + dur + 1);
+  });
+}
+
+function warnTone(freq, gain, output, t0, dur) {
+  organ(freq + 2.5, gain * 0.5, output, t0, dur);
+  organ(freq - 1.8, gain * 0.4, output, t0, dur);
+}
+
+function scheduleMovement(idx, t0) {
+  const mov = MOVEMENTS[idx % MOVEMENTS.length];
+  const dur = mov.tempo;
+  const dimBase = (idx * 5) % COMB.length;
+
+  const bassFreq = ROOT * SCALE[mov.chord[0] % SCALE.length];
+  bassDrone(bassFreq, 0.06 * GMF, t0, dur);
+
+  mov.chord.forEach((deg, vi) => {
+    const oct = vi === 0 ? 1 : vi === 1 ? 2 : 2;
+    const freq = ROOT * SCALE[deg % SCALE.length] * oct;
+    const gain = 0.03 * GMF * (vi === 0 ? 1.2 : 1.0);
+    const dimIdx = (dimBase + vi) % COMB.length;
+    const cell = COMB[dimIdx];
+
+    if (cell.s === 'fail') dissonant(freq, gain * 2, reverb, t0, dur);
+    else if (cell.s === 'warn') warnTone(freq, gain, reverb, t0, dur);
+    else organ(freq, gain, reverb, t0, dur);
+  });
+
+  mov.pad.forEach((deg, pi) => {
+    const freq = ROOT * SCALE[deg % SCALE.length];
+    const dimIdx = (dimBase + 3 + pi) % COMB.length;
+    const cell = COMB[dimIdx];
+    const gain = 0.02 * GMF;
+
+    if (cell.s === 'fail') dissonant(freq, gain * 1.5, reverb, t0, dur);
+    else stringPad(freq, gain, reverb, t0, dur);
+  });
+
+  return dur;
+}
+
+function begin() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('btn-play').classList.add('on');
+
+  ctx = new AC();
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 4096;
+  analyser.smoothingTimeConstant = 0.9;
+
+  compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.value = -15;
+  compressor.ratio.value = 3;
+  compressor.attack.value = 0.3;
+  compressor.release.value = 1.0;
+
+  reverb = createReverb();
+  master = ctx.createGain();
+  master.gain.value = 0.7;
+
+  const mw = ctx.createBiquadFilter();
+  mw.type = 'lowshelf'; mw.frequency.value = 250; mw.gain.value = 5;
+  const mp = ctx.createBiquadFilter();
+  mp.type = 'peaking'; mp.frequency.value = 500; mp.Q.value = 0.5; mp.gain.value = 4;
+  const mh = ctx.createBiquadFilter();
+  mh.type = 'highshelf'; mh.frequency.value = 2000; mh.gain.value = -3;
+
+  reverb.connect(compressor);
+  compressor.connect(mw); mw.connect(mp); mp.connect(mh);
+  mh.connect(master);
+  master.connect(analyser);
+  analyser.connect(ctx.destination);
+
+  step = 0;
+  let t = ctx.currentTime + 0.5;
+
+  startTick();
+
+  function advance() {
+    if (!playing) return;
+    const movIdx = step % 7;
+    const dimBase = (step * 5) % COMB.length;
+    const mov = MOVEMENTS[movIdx];
+    const activeDims = [0,1,2,3,4].map(i => COMB[(dimBase+i) % COMB.length]);
+
+    document.getElementById('movement').textContent = mov.name;
+    document.getElementById('character').textContent = mov.character;
+    document.getElementById('line').textContent = activeDims[0].line;
+    document.getElementById('dims').innerHTML =
+      activeDims.map(d => {
+        const grp = GROUPS[d.g];
+        const c = d.s==='fail' ? '#f44' : d.s==='warn' ? '#fa4' : `rgb(${grp.color.join(',')})`;
+        return `<span style="color:${c}">${d.id} <small style="opacity:0.4">[${grp.label}]</small></span>`;
+      }).join(' · ');
+
+    const dur = scheduleMovement(step, t);
+    t += dur - 3;
+    step++;
+
+    timer = setTimeout(advance, (dur - 3) * 1000);
+  }
+
+  advance();
+  drawVis();
+}
+
+function halt() {
+  playing = false;
+  document.getElementById('btn-play').classList.remove('on');
+  if (timer) clearTimeout(timer);
+  if (tickInterval) clearInterval(tickInterval);
+  if (animId) cancelAnimationFrame(animId);
+  if (ctx) { ctx.close(); ctx = null; }
+  document.getElementById('movement').textContent = '—';
+  document.getElementById('character').textContent = '—';
+  document.getElementById('line').textContent = '—';
+  document.getElementById('dims').textContent = '';
+  const c = document.getElementById('vis');
+  c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+
+function toggleFault() {
+  faultMode = !faultMode;
+  document.getElementById('btn-fault').classList.toggle('on', faultMode);
+  if (faultMode) {
+    COMB.find(c => c.id==='kernel').s = 'fail';
+    COMB.find(c => c.id==='anchor').s = 'fail';
+    COMB.find(c => c.id==='ring').s = 'fail';
+    COMB.find(c => c.id==='crown').s = 'warn';
+  } else {
+    COMB.forEach(c => { if (c.id !== 'ghost-typo') c.s = 'pass'; });
+  }
+}
+
+const TAU = Math.PI * 2;
+const TILT = 0.38;
+const COS_T = Math.cos(TILT), SIN_T = Math.sin(TILT);
+
+const GROUP_SPHERE = [
+  { key: 'vitality',  lat: 0.10, bandH: 0.13, speed: 0.024, trail: 4 },
+  { key: 'structure', lat: 0.24, bandH: 0.12, speed: 0.021, trail: 4 },
+  { key: 'knowledge', lat: 0.38, bandH: 0.12, speed: 0.018, trail: 3 },
+  { key: 'memory',    lat: 0.52, bandH: 0.11, speed: 0.016, trail: 3 },
+  { key: 'integrity', lat: 0.65, bandH: 0.10, speed: 0.014, trail: 3 },
+  { key: 'security',  lat: 0.78, bandH: 0.09, speed: 0.012, trail: 3 },
+  { key: 'identity',  lat: 0.92, bandH: 0.08, speed: 0.010, trail: 2 },
+];
+
+const BITMAP_ROWS = 9;
+const textBitmaps = {};
+
+function generateBitmap(text, copies) {
+  const oc = document.createElement('canvas');
+  const fontSize = BITMAP_ROWS;
+  oc.height = BITMAP_ROWS + 2;
+  const octx = oc.getContext('2d');
+  octx.font = `bold ${fontSize}px monospace`;
+  const singleW = Math.ceil(octx.measureText(text).width) + 4;
+  const gap = Math.ceil(singleW * 0.3);
+  const totalW = (singleW + gap) * copies;
+  oc.width = totalW;
+
+  octx.fillStyle = '#000';
+  octx.fillRect(0, 0, totalW, oc.height);
+  octx.fillStyle = '#fff';
+  octx.font = `bold ${fontSize}px monospace`;
+  octx.textBaseline = 'top';
+  for (let c = 0; c < copies; c++) {
+    octx.fillText(text, c * (singleW + gap) + 2, 1);
+  }
+
+  const imgData = octx.getImageData(0, 0, totalW, BITMAP_ROWS + 2);
+  const d = imgData.data;
+  const bitmap = [];
+  for (let y = 0; y < BITMAP_ROWS; y++) {
+    bitmap[y] = [];
+    for (let x = 0; x < totalW; x++) {
+      bitmap[y][x] = d[((y + 1) * totalW + x) * 4] / 255;
+    }
+  }
+  return { bitmap, width: totalW, height: BITMAP_ROWS };
+}
+
+Object.keys(GROUPS).forEach(key => {
+  textBitmaps[key] = generateBitmap(GROUPS[key].label, 3);
+});
+
+function sphProj(lat, theta, R, cx0, cy0) {
+  const cL = Math.cos(lat), sL = Math.sin(lat);
+  const x3 = R * cL * Math.cos(theta);
+  const y3 = R * cL * Math.sin(theta);
+  const z3 = R * sL;
+  const yP = y3 * COS_T - z3 * SIN_T;
+  const zP = y3 * SIN_T + z3 * COS_T;
+  return { x: cx0 + x3, y: cy0 + yP, depth: (zP + R) / (2 * R) };
+}
+
+const bugs = {};
+GROUP_SPHERE.forEach(gs => {
+  bugs[gs.key] = {
+    angle: Math.random() * TAU,
+    wobPhase: Math.random() * 100,
+    trail: [],
+  };
+});
+
+const SCAN_DEPTH = 0.35;
+const ARC_LEN = 25;
+
+function drawVis() {
+  if (!playing || !analyser) return;
+  const c = document.getElementById('vis');
+  const cx = c.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  c.width = c.offsetWidth * dpr;
+  c.height = c.offsetHeight * dpr;
+  cx.scale(dpr, dpr);
+
+  const w = c.offsetWidth, h = c.offsetHeight;
+  const freqData = new Uint8Array(analyser.frequencyBinCount);
+  let frameCount = 0;
+
+  function frame() {
+    if (!playing) return;
+    animId = requestAnimationFrame(frame);
+    analyser.getByteFrequencyData(freqData);
+    frameCount++;
+
+    cx.fillStyle = 'rgba(1, 1, 5, 0.010)';
+    cx.fillRect(0, 0, w, h);
+
+    const cx0 = w / 2, cy0 = h / 2;
+    const R = Math.min(cx0, cy0) * 0.88;
+
+    let totalEnergy = 0;
+    for (let i = 0; i < 256; i++) totalEnergy += freqData[i];
+    const energy = totalEnergy / 256 / 255;
+
+    const activeCount = Math.min(7, Math.floor(frameCount / 240) + 1);
+
+    cx.lineCap = 'round';
+    cx.lineJoin = 'round';
+
+    GROUP_SPHERE.forEach((gs, gi) => {
+      if (gi >= activeCount) return;
+      const birthFrame = gi * 240;
+      const age = frameCount - birthFrame;
+      const birthFade = Math.min(1, age / 90);
+
+      const group = GROUPS[gs.key];
+      const bm = textBitmaps[gs.key];
+      const bug = bugs[gs.key];
+      const color = group.color;
+
+      const bandStart = Math.floor((gi / 7) * 200);
+      let gE = 0;
+      for (let b = 0; b < 28; b++) gE += freqData[bandStart + b];
+      gE = gE / 28 / 255;
+
+      const hasFault = COMB.some(d => d.g === gs.key && d.s === 'fail');
+      const hasWarn = COMB.some(d => d.g === gs.key && d.s === 'warn');
+      const dC = hasFault ? [255, 60, 40] :
+                 hasWarn  ? [255, Math.round(color[1]*0.5+220*0.5), Math.round(color[2]*0.3)] :
+                 color;
+
+      bug.wobPhase += 0.011 + gE * 0.005;
+      const speedWob = 1 + 0.2 * Math.sin(bug.wobPhase * 1.7 + gi * 2.3);
+      bug.angle += gs.speed * (0.5 + gE * 2.5) * speedWob;
+
+      const latWob = Math.sin(bug.wobPhase * 2.1 + gi) * 0.04
+                   + Math.sin(bug.wobPhase * 5.3 + gi * 3) * 0.015
+                   + Math.sin(bug.wobPhase * 0.7 + gi * 0.5) * 0.025;
+
+      const pos = sphProj(gs.lat + latWob, bug.angle, R, cx0, cy0);
+      const dep = 0.15 + 0.85 * pos.depth;
+
+      const bugNorm = ((bug.angle % TAU) + TAU) % TAU;
+      const bmCol = Math.floor((bugNorm / TAU) * bm.width) % bm.width;
+
+      bug.trail.push({ x: pos.x, y: pos.y });
+      if (bug.trail.length > ARC_LEN) bug.trail.shift();
+
+      if (bug.trail.length > 2) {
+        cx.beginPath();
+        cx.moveTo(bug.trail[0].x, bug.trail[0].y);
+        for (let i = 1; i < bug.trail.length; i++) cx.lineTo(bug.trail[i].x, bug.trail[i].y);
+        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${birthFade * dep * (0.03 + gE * 0.05)})`;
+        cx.lineWidth = 3 + gE * 3;
+        cx.stroke();
+
+        cx.beginPath();
+        cx.moveTo(bug.trail[0].x, bug.trail[0].y);
+        for (let i = 1; i < bug.trail.length; i++) cx.lineTo(bug.trail[i].x, bug.trail[i].y);
+        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${birthFade * dep * (0.08 + gE * 0.12)})`;
+        cx.lineWidth = 0.8 + gE * 0.5;
+        cx.stroke();
+      }
+
+      for (let row = 0; row < bm.height; row++) {
+        const intensity = bm.bitmap[row][bmCol];
+        if (intensity < 0.06) continue;
+
+        const t0 = (row / bm.height) * SCAN_DEPTH;
+        const t1 = ((row + 1) / bm.height) * SCAN_DEPTH;
+
+        const x0 = pos.x + (cx0 - pos.x) * t0;
+        const y0 = pos.y + (cy0 - pos.y) * t0;
+        const x1 = pos.x + (cx0 - pos.x) * t1;
+        const y1 = pos.y + (cy0 - pos.y) * t1;
+
+        const scanA = intensity * birthFade * dep * (0.06 + gE * 0.1);
+
+        cx.beginPath();
+        cx.moveTo(x0, y0);
+        cx.lineTo(x1, y1);
+        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${scanA})`;
+        cx.lineWidth = 0.8 + gE * 0.8 + intensity * 0.5;
+        cx.stroke();
+      }
+
+      const beamA = birthFade * dep * (0.008 + gE * 0.015);
+      if (beamA > 0.005) {
+        const beamEnd = SCAN_DEPTH * 1.2; 
+        cx.beginPath();
+        cx.moveTo(pos.x, pos.y);
+        cx.lineTo(pos.x + (cx0 - pos.x) * beamEnd, pos.y + (cy0 - pos.y) * beamEnd);
+        cx.strokeStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${beamA})`;
+        cx.lineWidth = 0.3;
+        cx.stroke();
+      }
+
+      const headA = birthFade * dep * (0.12 + gE * 0.2);
+      cx.beginPath();
+      cx.arc(pos.x, pos.y, 1.5 + gE * 2, 0, TAU);
+      cx.fillStyle = `rgba(255,255,255,${headA})`;
+      cx.fill();
+      
+      cx.beginPath();
+      cx.arc(pos.x, pos.y, 3 + gE * 3, 0, TAU);
+      cx.fillStyle = `rgba(${dC[0]},${dC[1]},${dC[2]},${headA * 0.3})`;
+      cx.fill();
+    });
+
+    const qR = R * 0.015 + energy * R * 0.01;
+    const qG = cx.createRadialGradient(cx0, cy0, 0, cx0, cy0, qR * 2);
+    qG.addColorStop(0, `rgba(255,255,255,${0.03 + energy * 0.08})`);
+    qG.addColorStop(0.4, `rgba(200,190,170,${0.01 + energy * 0.03})`);
+    qG.addColorStop(1, 'rgba(180,170,150,0)');
+    cx.fillStyle = qG;
+    cx.beginPath();
+    cx.arc(cx0, cy0, qR * 2, 0, TAU);
+    cx.fill();
+  }
+
+  frame();
+}
+
+// ── CLAUDE CODE MCP WEBSOCKET BRIDGE ──
+const ws = new WebSocket('ws://localhost:5540');
+ws.onopen = () => console.log('[KV Revolver] Connected to Claude Code Socket.');
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.action === 'trigger_snap_lock') {
+    console.log('[DRT] Received 27-Step Matrix:', data.payload);
+    
+    // Simulate solving visual lock:
+    let stepCount = 0;
+    const interval = setInterval(() => {
+        if(stepCount >= 27) {
+            clearInterval(interval);
+            document.getElementById('movement').textContent = "SNAP LOCK";
+            document.getElementById('movement').style.color = "#00ffaa";
+            document.getElementById('character').textContent = "Eigenvector Matrix Stabilized";
+            return;
+        }
+        
+        let step = data.payload.ribosome_traversal[stepCount];
+        document.getElementById('movement').textContent = `RIBOSOME ${step.step_id}`;
+        document.getElementById('character').textContent = `${step.action} [${step.socratic_variable}]`;
+        document.getElementById('line').textContent = data.payload.problem_summary;
+        
+        // Spin the bugs wildly mimicking structural adjustment
+        Object.values(bugs).forEach(b => {
+             b.angle += step.shift_value * 2.0;
+        });
+
+        stepCount++;
+    }, 400); // Wait between steps to visualize
+  }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRT Phase 4: Cellular Graph Simulator (Merged)</title>
+    <style>
+        body { margin: 0; background: #0b0c10; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .header { position: absolute; top: 20px; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #fff; z-index: 50; text-align: center;}
+        .sub-header { font-size: 11px; color: #34c759; letter-spacing: 2px; margin-top: 5px; }
+        
+        .nav-link { border: 1px solid; border-radius: 3px; padding: 6px 12px; font-size: 11px; cursor: pointer; text-decoration: none; font-weight: bold; pointer-events: auto; display: inline-block;}
+        .nav-link:hover { background: rgba(255,255,255,0.1); }
+        
+        .controls { position: absolute; bottom: 30px; z-index: 50; display: flex; gap: 15px;}
+        .btn { padding: 8px 20px; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-family: monospace; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .btn:hover { background: rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(255,255,255,0.2);}
+
+        /* GRAPH CONTAINER */
+        #graph-container { position: relative; width: 800px; height: 600px; z-index: 10; margin-top: 30px;}
+        
+        .node { position: absolute; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s; z-index: 20;}
+        .n-title { font-weight: bold; font-size: 12px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;}
+        .n-sub { font-size: 9px; color: #aaa;}
+        .n-val { font-size: 20px; font-weight: bold; margin-top: 5px;}
+        .n-canvas { width: 120px; height: 120px; margin-top: 10px; border-radius: 4px; }
+
+        /* PERIPHERAL NODES (Hex style via transparent bg) */
+        .outer-node { width: 160px; height: 180px; cursor: pointer; }
+        .outer-node:hover { transform: scale(1.05); }
+
+        #node-hypo { top: 10px; left: 120px; color: #0a84ff;}
+        #node-pit { top: 10px; right: 120px; color: #bf5af2;}
+        #node-adr { bottom: 10px; left: 320px; color: #ffd60a;}
+
+        /* CENTRAL NODE */
+        #node-center { top: 260px; left: 280px; width: 240px; height: 240px; border: 2px solid #34c759; background: rgba(52,199,89,0.05); color: #34c759; box-shadow: 0 0 40px rgba(0,0,0,0.8);}
+        .center-canvas { width: 180px; height: 60px; margin-top: 15px; border-radius: 6px; background: rgba(0,0,0,0.6); border: 1px solid rgba(52,199,89,0.3);}
+        
+        .fft-readout { display: flex; gap: 10px; margin-top: 15px; width: 80%; justify-content: center;}
+        .fft-bulb { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #555; background: #222; transition: 0.1s;}
+
+        #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        .toggle-hint { font-size: 8px; color: #555; position: absolute; bottom: 0px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        THE BIO BRAIN V4
+        <div class="sub-header">CLAUDE CANVAS FUSION · BEEHIVE HPA AXIS RECONSTRUCTION</div>
+        
+        <div style="display:flex; gap:10px; margin-top:15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; justify-content:center; pointer-events:auto;">
+            <a href="2026-03-23_-generator-NM_v01.html" class="nav-link" style="color:#ff3b30; border-color:#ff3b30;">01 COMPOSER</a>
+            <a href="2026-03-23_-scanner-NM_v01.html" class="nav-link" style="color:#ff9f0a; border-color:#ff9f0a;">02 SCANNER</a>
+            <a href="2026-03-23_-pipeline-NM_v01.html" class="nav-link" style="color:#e07060; border-color:#e07060;">03 PIPELINE</a>
+            <a href="2026-03-23_-cell_simulator-NM_v01.html" class="nav-link" style="color:#34c759; border-color:#34c759; background:rgba(52,199,89,0.1);">04 BIO BRAIN</a>
+            <a href="2026-03-23_-harmonic_solver-NM_v01.html" class="nav-link" style="color:#0a84ff; border-color:#0a84ff;">05 ORBITAL SOLVER</a>
+            <a href="2026-03-23_-supernova_solver-NM_v01.html" class="nav-link" style="color:#d0b060; border-color:#d0b060;">06 SUPERNOVA 3D</a>
+        </div>
+    </div>
+
+    <canvas id="bgCanvas"></canvas>
+
+    <div id="graph-container">
+        <!-- OUTER 1: HYPOTHALAMUS -->
+        <div class="node outer-node" id="node-hypo" onclick="toggleNode('hypo')">
+            <div class="n-title">HYPOTHALAMUS</div>
+            <div class="n-sub">CRH ➔ 150Hz</div>
+            <canvas class="n-canvas" id="cvs-hypo"></canvas>
+            <div class="toggle-hint">CLICK TO SECRETE</div>
+        </div>
+
+        <!-- OUTER 2: PITUITARY -->
+        <div class="node outer-node" id="node-pit" onclick="toggleNode('pit')">
+            <div class="n-title">PITUITARY</div>
+            <div class="n-sub">ACTH ➔ 250Hz</div>
+            <canvas class="n-canvas" id="cvs-pit"></canvas>
+            <div class="toggle-hint">CLICK TO SECRETE</div>
+        </div>
+
+        <!-- OUTER 3: ADRENAL -->
+        <div class="node outer-node" id="node-adr" onclick="toggleNode('adr')">
+            <div class="n-title">ADRENAL GLAND</div>
+            <div class="n-sub">CORTISOL ➔ 350Hz</div>
+            <canvas class="n-canvas" id="cvs-adr"></canvas>
+            <div class="toggle-hint">CLICK TO SECRETE</div>
+        </div>
+
+        <!-- CENTER: RECEPTOR -->
+        <div class="node" id="node-center">
+            <div class="n-title">TARGET CELL / RECEPTOR</div>
+            <div class="n-sub" style="color:#aaa;">SUPERIMPOSED BIOLOGICAL ETHER</div>
+            
+            <canvas class="center-canvas" id="cvs-blood"></canvas>
+            
+            <div style="font-size: 9px; margin-top:15px; color:#555;">RECEPTOR FFT DE-COMPOSER</div>
+            <div class="fft-readout">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
+                    <div class="fft-bulb" id="bulb-hypo"></div>
+                    <span style="font-size:8px; color:#0a84ff;">CRH</span>
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
+                    <div class="fft-bulb" id="bulb-pit"></div>
+                    <span style="font-size:8px; color:#bf5af2;">ACTH</span>
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
+                    <div class="fft-bulb" id="bulb-adr"></div>
+                    <span style="font-size:8px; color:#ffd60a;">CORT</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" id="playBachBtn" style="border-color:#32d74b; color:#32d74b;">♪ SING BACH IN CORTISOL</button>
+    </div>
+
+    <script>
+        // BACH BWV 847 DATA & GLAND MAPPING
+        const freqMap = {
+            1: { note: 'C4', hz: 261.63, gland: 'hypo' },
+            2: { note: 'D4', hz: 293.66, gland: 'hypo' },
+            3: { note: 'Eb4', hz: 311.13, gland: 'pit' },
+            4: { note: 'F4', hz: 349.23, gland: 'pit' },
+            5: { note: 'G4', hz: 392.00, gland: 'adr' },
+            6: { note: 'Ab4', hz: 415.30, gland: 'adr' },
+            7: { note: 'B3', hz: 246.94, gland: 'hypo' },
+            0: { note: 'REST', hz: 0, gland: null }
+        };
+
+        const defaultHz = { 'hypo': 261.63, 'pit': 311.13, 'adr': 392.00 };
+        
+        // GRAPH DATA
+        const nodes = {
+            'hypo': { active: false, hz: defaultHz.hypo, color: '#0a84ff', el: document.getElementById('node-hypo'), cvs: document.getElementById('cvs-hypo') },
+            'pit':  { active: false, hz: defaultHz.pit,  color: '#bf5af2', el: document.getElementById('node-pit'), cvs: document.getElementById('cvs-pit') },
+            'adr':  { active: false, hz: defaultHz.adr,  color: '#ffd60a', el: document.getElementById('node-adr'), cvs: document.getElementById('cvs-adr') }
+        };
+
+        let audioCtx;
+        let isSequencing = false;
+        const bachSequence = [1, 0, 7, 0, 1, 0, 5, 0, 6, 1, 7, 1, 2, 5, 0, 1, 7, 1, 2, 4, 3, 2, 3, 0];
+        let playhead = 0;
+
+        function initAudio() {
+            if(audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            Object.keys(nodes).forEach(key => {
+                const n = nodes[key];
+                n.osc = audioCtx.createOscillator();
+                n.gain = audioCtx.createGain();
+                n.gain.gain.value = 0;
+                n.osc.frequency.value = n.hz;
+                n.osc.connect(n.gain);
+                n.gain.connect(audioCtx.destination);
+                n.osc.start();
+            });
+        }
+
+        const bloodCvs = document.getElementById('cvs-blood');
+        const bgCvs = document.getElementById('bgCanvas');
+        let timeTick = 0;
+
+        function toggleNode(key) {
+            initAudio();
+            if(isSequencing) return; 
+            
+            nodes[key].active = !nodes[key].active;
+            nodes[key].hz = defaultHz[key]; 
+            nodes[key].osc.frequency.setTargetAtTime(nodes[key].hz, audioCtx.currentTime, 0.02);
+            
+            if(nodes[key].active) {
+                nodes[key].gain.gain.setTargetAtTime(0.1, audioCtx.currentTime, 0.02);
+            } else {
+                nodes[key].gain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+            }
+        }
+
+        document.getElementById('playBachBtn').addEventListener('click', (e) => {
+            initAudio();
+            isSequencing = !isSequencing;
+            e.target.innerText = isSequencing ? "■ STOP CORTISOL BACH" : "♪ SING BACH IN CORTISOL";
+            e.target.style.color = isSequencing ? "#ff3b30" : "#32d74b";
+            e.target.style.borderColor = isSequencing ? "#ff3b30" : "#32d74b";
+            
+            if(!isSequencing) {
+                Object.keys(nodes).forEach(k => {
+                    nodes[k].active = false;
+                    nodes[k].gain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+                });
+            }
+        });
+
+        setInterval(() => {
+            if(!isSequencing || !audioCtx) return;
+            
+            const activeVal = bachSequence[playhead];
+            const data = freqMap[activeVal];
+
+            Object.keys(nodes).forEach(k => {
+                nodes[k].active = false;
+                nodes[k].gain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+                document.getElementById('bulb-'+k).innerText = '';
+            });
+
+            if(activeVal !== 0 && data.gland) {
+                const targetKey = data.gland;
+                const n = nodes[targetKey];
+                n.active = true;
+                n.hz = data.hz;
+                n.osc.frequency.setTargetAtTime(n.hz, audioCtx.currentTime, 0.01);
+                n.gain.gain.setTargetAtTime(0.15, audioCtx.currentTime, 0.02);
+                
+                const bulb = document.getElementById('bulb-'+targetKey);
+                bulb.innerText = data.note;
+                bulb.style.color = '#000';
+                bulb.style.fontSize = '8px';
+                bulb.style.fontWeight = 'bold';
+                bulb.style.lineHeight = '12px';
+            }
+
+            playhead = (playhead + 1) % bachSequence.length;
+        }, 300);
+
+        // V4: CLAUDE FUSION - THE BEEHIVE CIVILIZATION MATH
+        function drawHexCivilization(ctx, width, height, hz, active, color) {
+            ctx.clearRect(0, 0, width, height);
+            
+            const px = width / 2;
+            const py = height / 2;
+            const HEX_SIZE = Math.min(width, height) / 2 - 2;
+            
+            // Draw outer Hex boundary
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle_rad = Math.PI / 180 * (60 * i - 30);
+                const x = px + HEX_SIZE * Math.cos(angle_rad);
+                const y = py + HEX_SIZE * Math.sin(angle_rad);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = active ? color : 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = active ? 2 : 1;
+            ctx.globalAlpha = active ? 0.05 : 0.01;
+            ctx.fillStyle = active ? color : '#fff';
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            ctx.stroke();
+
+            // The Nested Hex "Civilization"
+            const miniHexR = 6;
+            ctx.lineWidth = 0.5;
+            for (let q = -5; q <= 5; q++) {
+                let r1 = Math.max(-5, -q - 5);
+                let r2 = Math.min(5, -q + 5);
+                for (let r = r1; r <= r2; r++) {
+                    const hx = px + miniHexR * Math.sqrt(3) * (q + r/2);
+                    const hy = py + miniHexR * 3/2 * r;
+                    
+                    let dist = Math.hypot(hx - px, hy - py);
+                    if (dist > HEX_SIZE - 5) continue;
+                    
+                    // Pulse and Swarm based on hz if active
+                    let pulse = active ? (Math.sin(timeTick * 0.02 * (hz/20) + q * 0.5 + r * 0.5) * 0.5 + 0.5) : 0;
+                    let alpha = active ? (0.1 + pulse * 0.8) : 0.05;
+                    
+                    // Small Hex
+                    ctx.beginPath();
+                    for (let i = 0; i < 6; i++) {
+                        const a = Math.PI / 180 * (60 * i - 30);
+                        const x = hx + (miniHexR * 0.85) * Math.cos(a);
+                        const y = hy + (miniHexR * 0.85) * Math.sin(a);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    
+                    ctx.globalAlpha = alpha;
+                    ctx.strokeStyle = active ? color : '#fff';
+                    ctx.stroke();
+                    
+                    // Nesterov Honeybee Particles
+                    if (active && Math.random() < pulse * 0.08) {
+                        ctx.globalAlpha = alpha * 1.5;
+                        ctx.beginPath();
+                        ctx.arc(hx, hy, 1.5, 0, Math.PI * 2);
+                        ctx.fillStyle = '#fff';
+                        ctx.shadowColor = color;
+                        ctx.shadowBlur = 5;
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                    }
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+        }
+
+        let bloodBuffer = Array(250).fill(0);
+
+        function renderLoop() {
+            bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight;
+            const bgCtx = bgCvs.getContext('2d');
+            bgCtx.clearRect(0,0,bgCvs.width,bgCvs.height);
+
+            const centerRect = document.getElementById('node-center').getBoundingClientRect();
+            const cx = centerRect.left + centerRect.width/2;
+            const cy = centerRect.top + centerRect.height/2;
+
+            let superimposedValue = 0;
+
+            Object.keys(nodes).forEach(key => {
+                const n = nodes[key];
+                
+                n.cvs.width = n.cvs.clientWidth; n.cvs.height = n.cvs.clientHeight;
+                const ctx = n.cvs.getContext('2d');
+                
+                // Render the fused Beehive Civilization inside Claude's structured node boundaries
+                drawHexCivilization(ctx, n.cvs.width, n.cvs.height, n.hz, n.active, n.color);
+
+                if(n.active) superimposedValue += Math.sin(timeTick * 0.03 * n.hz);
+
+                const rect = n.el.getBoundingClientRect();
+                const nx = rect.left + rect.width/2;
+                const ny = rect.top + rect.height/2;
+
+                bgCtx.beginPath();
+                bgCtx.moveTo(nx, ny);
+                bgCtx.lineTo(cx, cy);
+                bgCtx.strokeStyle = n.active ? n.color : 'rgba(255,255,255,0.02)';
+                bgCtx.lineWidth = n.active ? 2 : 1;
+                
+                if(n.active) {
+                    bgCtx.setLineDash([10, 20]);
+                    bgCtx.lineDashOffset = -(timeTick * (n.hz/100));
+                } else {
+                    bgCtx.setLineDash([]);
+                }
+                bgCtx.stroke();
+                bgCtx.setLineDash([]);
+
+                const bulb = document.getElementById('bulb-'+key);
+                if(n.active) {
+                    bulb.style.backgroundColor = n.color;
+                    bulb.style.boxShadow = `0 0 20px ${n.color}`;
+                    bulb.style.borderColor = '#fff';
+                } else {
+                    bulb.style.backgroundColor = '#222';
+                    bulb.style.boxShadow = 'none';
+                    bulb.style.borderColor = '#555';
+                    bulb.innerText = '';
+                }
+            });
+
+            bloodBuffer.push(superimposedValue);
+            bloodBuffer.shift();
+
+            bloodCvs.width = bloodCvs.clientWidth; bloodCvs.height = bloodCvs.clientHeight;
+            const bCtx = bloodCvs.getContext('2d');
+            bCtx.clearRect(0,0,bloodCvs.width,bloodCvs.height);
+
+            const anyActive = Object.values(nodes).some(n => n.active);
+
+            bCtx.beginPath();
+            bCtx.strokeStyle = anyActive ? '#34c759' : 'rgba(255,255,255,0.1)';
+            bCtx.shadowColor = anyActive ? '#34c759' : 'transparent';
+            bCtx.shadowBlur = anyActive ? 15 : 0;
+            bCtx.lineWidth = 2;
+
+            const dx = bloodCvs.width / bloodBuffer.length;
+            for(let i=0; i<bloodBuffer.length; i++) {
+                const x = i * dx;
+                const y = bloodCvs.height/2 - (bloodBuffer[i] * 12); 
+                if(i===0) bCtx.moveTo(x,y); else bCtx.lineTo(x,y);
+            }
+            bCtx.stroke();
+            bCtx.shadowBlur = 0;
+
+            timeTick++;
+            requestAnimationFrame(renderLoop);
+        }
+        
+        renderLoop();
+    </script>
+</body>
+</html>

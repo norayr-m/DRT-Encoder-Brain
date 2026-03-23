@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JimDirBee — Graph-DRT</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    height: 100vh;
+}
+
+#canvas { position: absolute; top: 0; left: 0; z-index: 1; }
+
+#ui {
+    position: absolute; top: 0; left: 0; z-index: 10;
+    width: 100%; height: 100%;
+    pointer-events: none;
+}
+
+#header {
+    text-align: center;
+    padding: 12px;
+    background: rgba(10,10,26,0.85);
+    border-bottom: 1px solid #333;
+    pointer-events: auto;
+}
+#header h1 { font-size: 18px; color: #f0c040; letter-spacing: 2px; }
+#header .sub { font-size: 11px; color: #888; margin-top: 4px; }
+
+#sql-panel {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(10,10,26,0.92);
+    border-top: 1px solid #333;
+    padding: 12px 20px;
+    pointer-events: auto;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+#sql-display {
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.kw { color: #569cd6; font-weight: bold; }
+.fn { color: #dcdcaa; }
+.str { color: #ce9178; }
+.comment { color: #6a9955; }
+.result { color: #4ec9b0; }
+.bee-icon { color: #f0c040; }
+.alert { color: #f44; }
+.dim { color: #555; }
+
+#controls {
+    position: absolute;
+    top: 60px; right: 20px;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn {
+    background: rgba(30,30,50,0.9);
+    border: 1px solid #444;
+    color: #f0c040;
+    padding: 8px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+.btn:hover { background: rgba(60,60,80,0.9); border-color: #f0c040; }
+.btn.active { background: rgba(240,192,64,0.2); border-color: #f0c040; }
+
+#legend {
+    position: absolute;
+    top: 60px; left: 20px;
+    pointer-events: auto;
+    background: rgba(10,10,26,0.85);
+    border: 1px solid #333;
+    padding: 10px 14px;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 1.8;
+}
+.legend-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+#mapping {
+    position: absolute;
+    top: 200px; left: 20px;
+    pointer-events: auto;
+    background: rgba(10,10,26,0.85);
+    border: 1px solid #333;
+    padding: 10px 14px;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 2;
+    max-width: 320px;
+}
+.map-arrow { color: #f0c040; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+    <div id="header">
+        <h1>JimDirBee — GRAPH-DRT</h1>
+        <div class="sub">Your Pipelines Are Projection Operators &nbsp;·&nbsp; Three-phase neuron: Jim's, for teaching balance &nbsp;·&nbsp; C. Anoian & N. Matevosyan</div>
+    </div>
+
+    <div id="legend">
+        <div><span class="legend-dot" style="background:#f04040"></span> Substation (rank 3)</div>
+        <div><span class="legend-dot" style="background:#f0a040"></span> Feeder (rank 2)</div>
+        <div><span class="legend-dot" style="background:#40a0f0"></span> Transformer (rank 1)</div>
+        <div><span class="legend-dot" style="background:#40f080"></span> Meter (rank 0)</div>
+        <div><span class="legend-dot" style="background:#f0c040"></span> Bee (query worker)</div>
+        <div style="margin-top:6px; color:#888">Bee count = data flowing through your pipeline</div>
+    </div>
+
+    <div id="mapping">
+        <div style="color:#f0c040; font-weight:bold; margin-bottom:4px;">Jim's World → DRT</div>
+        <div><span class="kw">SELECT</span> <span class="map-arrow">→</span> Projection Π_i</div>
+        <div><span class="kw">JOIN</span> <span class="map-arrow">→</span> Neighbor communication</div>
+        <div><span class="kw">GROUP BY</span> <span class="map-arrow">→</span> Rank aggregation</div>
+        <div><span class="kw">SUM / AVG</span> <span class="map-arrow">→</span> Reconstruction Σφ_i·C_i·Π_i</div>
+        <div><span class="kw">DISTINCT</span> <span class="map-arrow">→</span> Faithful completion</div>
+        <div><span class="kw">WHERE</span> ... <span class="kw">HAVING</span> <span class="map-arrow">→</span> Corruption detection</div>
+        <div style="margin-top:10px; color:#888">Your pipelines ARE the operators.<br>Your databases ARE the comb.<br>30 years → you already built it.</div>
+        <div style="margin-top:10px; color:#f0c040; font-size:10px;">Working name: "JimDirBee"<br>(minky's idea, meh)<br><span style="color:#888">You name it.</span></div>
+    </div>
+
+    <div id="controls">
+        <button class="btn" onclick="runQuery('select')">▶ SELECT (Project)</button>
+        <button class="btn" onclick="runQuery('join')">▶ JOIN (Neighbors)</button>
+        <button class="btn" onclick="runQuery('aggregate')">▶ AGGREGATE (Reconstruct)</button>
+        <button class="btn" onclick="runQuery('distinct')">▶ DISTINCT (Validate)</button>
+        <button class="btn" onclick="runQuery('corrupt')">▶ INJECT CORRUPTION</button>
+        <button class="btn" onclick="runQuery('detect')">▶ WHERE Π·C·Π ≠ Π</button>
+        <button class="btn" onclick="runQuery('twin')">▶ DIGITAL TWIN</button>
+        <button class="btn" onclick="runQuery('auto')">▶▶ AUTO (Full Cycle)</button>
+    </div>
+
+    <div id="sql-panel">
+        <div id="sql-display">
+<span class="comment">-- GridDRT: Your infrastructure speaks SQL. The math speaks DRT.</span>
+<span class="comment">-- Press the buttons to see bees execute each operation on the graph.</span>
+<span class="comment">-- Or hit AUTO for the full cycle.</span>
+<span class="comment">--</span>
+<span class="comment">-- Every query you ever wrote was a projection operator.</span>
+<span class="comment">-- You just didn't have the theorem yet.</span>
+        </div>
+    </div>
+</div>
+
+<script>
+// =========================================================================
+// GRAPH DATABASE — Jim's world as nodes and edges
+// =========================================================================
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Grid nodes with positions
+const nodes = [
+    { id:'SUB_01', name:'Substation', rank:3, x:0.5, y:0.15, color:'#f04040', r:28,
+      measures:['V','I','P','Q','PF','T'], data:{V:1.02,I:450,P:5240,Q:1780,PF:0.92,T:42} },
+
+    { id:'FDR_01', name:'Feeder 1', rank:2, x:0.3, y:0.32, color:'#f0a040', r:22,
+      measures:['V','I','P'], data:{V:1.005,I:210,P:2580,Q:null,PF:null,T:null} },
+    { id:'FDR_02', name:'Feeder 2', rank:2, x:0.7, y:0.32, color:'#f0a040', r:22,
+      measures:['V','I'], data:{V:1.0,I:230,P:null,Q:null,PF:null,T:null} },
+
+    { id:'XFM_01', name:'Xfmr 1', rank:1, x:0.18, y:0.50, color:'#40a0f0', r:16,
+      measures:['V','T'], data:{V:0.995,I:null,P:null,Q:null,PF:null,T:38} },
+    { id:'XFM_02', name:'Xfmr 2', rank:1, x:0.38, y:0.50, color:'#40a0f0', r:16,
+      measures:['V'], data:{V:0.99,I:null,P:null,Q:null,PF:null,T:null} },
+    { id:'XFM_03', name:'Xfmr 3', rank:1, x:0.60, y:0.50, color:'#40a0f0', r:16,
+      measures:['V'], data:{V:0.985,I:null,P:null,Q:null,PF:null,T:null} },
+    { id:'XFM_04', name:'Xfmr 4', rank:1, x:0.80, y:0.50, color:'#40a0f0', r:16,
+      measures:['V'], data:{V:0.99,I:null,P:null,Q:null,PF:null,T:null} },
+
+    { id:'MTR_01', name:'Res 1', rank:0, x:0.10, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.99,I:1.2,P:14.5,Q:null,PF:null,T:null} },
+    { id:'MTR_02', name:'Res 2', rank:0, x:0.22, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.985,I:1.5,P:18.2,Q:null,PF:null,T:null} },
+    { id:'MTR_03', name:'Res 3', rank:0, x:0.32, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.98,I:0.9,P:10.8,Q:null,PF:null,T:null} },
+    { id:'MTR_04', name:'Res 4', rank:0, x:0.42, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.975,I:1.1,P:13.1,Q:null,PF:null,T:null} },
+    { id:'MTR_05', name:'Com 5', rank:0, x:0.54, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.98,I:6.5,P:78.5,Q:null,PF:null,T:null} },
+    { id:'MTR_06', name:'Res 6', rank:0, x:0.66, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.985,I:1.3,P:15.7,Q:null,PF:null,T:null} },
+    { id:'MTR_07', name:'Res 7', rank:0, x:0.74, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.99,I:0.8,P:9.6,Q:null,PF:null,T:null} },
+    { id:'MTR_08', name:'Res 8', rank:0, x:0.86, y:0.70, color:'#40f080', r:12,
+      measures:['V','I','P'], data:{V:0.985,I:1.4,P:16.9,Q:null,PF:null,T:null} },
+];
+
+const edges = [
+    ['SUB_01','FDR_01'], ['SUB_01','FDR_02'],
+    ['FDR_01','XFM_01'], ['FDR_01','XFM_02'],
+    ['FDR_02','XFM_03'], ['FDR_02','XFM_04'],
+    ['XFM_01','MTR_01'], ['XFM_01','MTR_02'],
+    ['XFM_02','MTR_03'], ['XFM_02','MTR_04'],
+    ['XFM_03','MTR_05'], ['XFM_03','MTR_06'],
+    ['XFM_04','MTR_07'], ['XFM_04','MTR_08'],
+    // Same-rank neighbor edges (dashed)
+    ['FDR_01','FDR_02'],
+    ['XFM_01','XFM_02'], ['XFM_03','XFM_04'],
+    ['MTR_01','MTR_02'], ['MTR_03','MTR_04'],
+    ['MTR_05','MTR_06'], ['MTR_07','MTR_08'],
+];
+
+const sameRankEdges = new Set([
+    'FDR_01-FDR_02','XFM_01-XFM_02','XFM_03-XFM_04',
+    'MTR_01-MTR_02','MTR_03-MTR_04','MTR_05-MTR_06','MTR_07-MTR_08'
+]);
+
+function nodeById(id) { return nodes.find(n => n.id === id); }
+function nx(n) { return n.x * W; }
+function ny(n) { return n.y * (H - 200) + 60; }
+
+// =========================================================================
+// BEES — the query workers
+// =========================================================================
+
+let bees = [];
+let beeIdCounter = 0;
+
+class Bee {
+    constructor(fromNode, toNode, payload, color, opts) {
+        this.id = beeIdCounter++;
+        this.from = fromNode;
+        this.to = toNode;
+        this.payload = payload || '';
+        this.color = color || '#f0c040';
+        this.t = 0;
+        this.speed = 0.006 + Math.random() * 0.006;
+        this.alive = true;
+        this.wobblePhase = Math.random() * Math.PI * 2;
+        this.wobbleAmp = 4 + Math.random() * 6;
+        this.size = 4 + Math.random() * 3;
+        this.trail = [];
+
+        // Advanced bee behaviors
+        opts = opts || {};
+        this.bubble = opts.bubble || null;        // text bubble shown at finish
+        this.bounceOnArrive = opts.bounce || false; // DISTINCT: bounce off at destination
+        this.chainTo = opts.chainTo || null;       // next node to fly to after arrival (rank climb)
+        this.isFinalist = opts.finalist || false;  // finalist bees are bigger, show result
+        this.rankClimb = opts.rankClimb || false;  // climbing the ranks
+        this.bounced = false;
+        this.bounceT = 0;
+        this.arrived = false;
+        this.arriveTime = 0;
+
+        if (this.isFinalist) { this.size = 7; this.wobbleAmp = 2; }
+        if (this.rankClimb) { this.color = '#f0c040'; this.size = 6; }
+    }
+
+    update() {
+        if (this.bounced) {
+            // Bounce animation — bee bounces back 20% then fades
+            this.bounceT += 0.02;
+            let bx = nx(this.to) + (nx(this.from) - nx(this.to)) * this.bounceT * 0.3;
+            let by = ny(this.to) + (ny(this.from) - ny(this.to)) * this.bounceT * 0.3;
+            // Arc upward during bounce
+            by -= Math.sin(this.bounceT * Math.PI) * 30;
+            this.cx = bx;
+            this.cy = by;
+            if (this.bounceT >= 1) this.alive = false;
+            return;
+        }
+
+        if (this.arrived) {
+            // Finalist hover at destination
+            this.arriveTime += 0.01;
+            this.cx = nx(this.to) + Math.sin(this.arriveTime * 3) * 8;
+            this.cy = ny(this.to) - this.to.r - 20 + Math.sin(this.arriveTime * 2) * 3;
+            if (this.arriveTime > 5) this.alive = false;
+            return;
+        }
+
+        this.t += this.speed;
+        if (this.t >= 1) {
+            if (this.bounceOnArrive) {
+                // DISTINCT bounce — bee hits the node and bounces off
+                this.bounced = true;
+                this.cx = nx(this.to);
+                this.cy = ny(this.to);
+                // Spawn the "winner" bee that continues
+                if (this.chainTo) {
+                    let nextNode = nodeById(this.chainTo);
+                    if (nextNode) {
+                        setTimeout(() => {
+                            bees.push(new Bee(this.to, nextNode, this.payload, '#f0c040', {
+                                rankClimb: true,
+                                bubble: this.bubble,
+                                finalist: this.isFinalist,
+                                chainTo: null
+                            }));
+                        }, 200);
+                    }
+                }
+                return;
+            }
+            if (this.chainTo) {
+                // Rank climb — arrive at node, then fly to next
+                let nextNode = nodeById(this.chainTo);
+                if (nextNode) {
+                    this.from = this.to;
+                    this.to = nextNode;
+                    this.t = 0;
+                    this.chainTo = null;
+                    this.rankClimb = true;
+                    if (this.bubble) this.isFinalist = true;
+                    return;
+                }
+            }
+            if (this.isFinalist && this.bubble) {
+                this.arrived = true;
+                this.cx = nx(this.to);
+                this.cy = ny(this.to) - this.to.r - 20;
+                return;
+            }
+            this.alive = false;
+            return;
+        }
+
+        let x = nx(this.from) + (nx(this.to) - nx(this.from)) * this.t;
+        let y = ny(this.from) + (ny(this.to) - ny(this.from)) * this.t;
+
+        // Wobble perpendicular to path
+        let dx = nx(this.to) - nx(this.from);
+        let dy = ny(this.to) - ny(this.from);
+        let len = Math.sqrt(dx*dx + dy*dy) || 1;
+        let perpX = -dy/len;
+        let perpY = dx/len;
+        let wobble = Math.sin(this.t * Math.PI * 6 + this.wobblePhase) * this.wobbleAmp;
+        x += perpX * wobble;
+        y += perpY * wobble;
+
+        // Rank climb = bee gets slightly bigger as it ascends
+        if (this.rankClimb) {
+            this.size = 5 + this.t * 3;
+        }
+
+        this.cx = x;
+        this.cy = y;
+
+        this.trail.push({x, y, age: 0});
+        if (this.trail.length > 18) this.trail.shift();
+    }
+
+    draw() {
+        if (!this.alive) return;
+
+        // Trail
+        for (let i = 0; i < this.trail.length; i++) {
+            let t = this.trail[i];
+            let alpha = (i / this.trail.length) * 0.4;
+            let hex = Math.floor(alpha * 255).toString(16).padStart(2,'0');
+            ctx.fillStyle = this.color.substring(0,7) + hex;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, this.size * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Body — striped for visibility
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.cx, this.cy, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        // Dark stripe
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(this.cx, this.cy, this.size * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.cx, this.cy, this.size * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wings
+        let wingPhase = Date.now() * 0.025 + this.wobblePhase;
+        ctx.fillStyle = this.color.substring(0,7) + '50';
+        for (let side of [-1, 1]) {
+            ctx.beginPath();
+            ctx.ellipse(
+                this.cx + side * this.size * 0.8,
+                this.cy - this.size * 0.5,
+                this.size * 1.3,
+                this.size * 0.5 * (0.5 + 0.5 * Math.sin(wingPhase)),
+                side * 0.3, 0, Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        // Bounce spark
+        if (this.bounced && this.bounceT < 0.3) {
+            ctx.fillStyle = '#fff';
+            for (let i = 0; i < 4; i++) {
+                let angle = (i / 4) * Math.PI * 2 + Date.now() * 0.01;
+                let sparkR = 10 + this.bounceT * 20;
+                ctx.beginPath();
+                ctx.arc(
+                    this.cx + Math.cos(angle) * sparkR,
+                    this.cy + Math.sin(angle) * sparkR,
+                    2, 0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+        }
+
+        // Result bubble for finalist bees
+        if (this.arrived && this.bubble) {
+            let bubbleAlpha = Math.min(1, this.arriveTime * 2);
+            ctx.save();
+            ctx.globalAlpha = bubbleAlpha;
+
+            let text = this.bubble;
+            ctx.font = 'bold 10px Courier New';
+            let metrics = ctx.measureText(text);
+            let bw = metrics.width + 16;
+            let bh = 20;
+            let bx = this.cx - bw/2;
+            let by = this.cy - bh - 5;
+
+            // Bubble background
+            ctx.fillStyle = '#1a1a3a';
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.roundRect(bx, by, bw, bh, 4);
+            ctx.fill();
+            ctx.stroke();
+
+            // Bubble text
+            ctx.fillStyle = this.color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, this.cx, by + bh/2);
+
+            // Arrow down to bee
+            ctx.beginPath();
+            ctx.moveTo(this.cx - 4, by + bh);
+            ctx.lineTo(this.cx, by + bh + 5);
+            ctx.lineTo(this.cx + 4, by + bh);
+            ctx.fillStyle = '#1a1a3a';
+            ctx.fill();
+
+            ctx.restore();
+        }
+    }
+}
+
+// =========================================================================
+// NODE STATE — highlights, corruption, reconstruction
+// =========================================================================
+
+let nodeHighlights = {};  // id → {color, alpha, label}
+let corrupted = {};       // id → true
+let reconstructed = {};   // id → {field: value}
+let twinActive = false;
+let twinPulse = 0;
+
+// =========================================================================
+// QUERIES — SQL mapped to DRT
+// =========================================================================
+
+const sqlDisplay = document.getElementById('sql-display');
+
+function typeSql(html, delay) {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            sqlDisplay.innerHTML = html;
+            sqlDisplay.scrollTop = sqlDisplay.scrollHeight;
+            resolve();
+        }, delay || 0);
+    });
+}
+
+function spawnBees(fromId, toId, count, color, payload) {
+    let from = nodeById(fromId);
+    let to = nodeById(toId);
+    for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+            bees.push(new Bee(from, to, payload, color));
+        }, i * 80);
+    }
+}
+
+function spawnBeesOnEdges(edgeFilter, count, color, payload) {
+    edges.filter(edgeFilter).forEach(([a,b]) => {
+        spawnBees(a, b, count, color, payload);
+    });
+}
+
+function highlightNodes(ids, color, label) {
+    ids.forEach(id => {
+        nodeHighlights[id] = { color, alpha: 1, label };
+    });
+}
+
+function clearHighlights() {
+    nodeHighlights = {};
+    corrupted = {};
+    reconstructed = {};
+    twinActive = false;
+}
+
+async function runQuery(type) {
+    clearHighlights();
+
+    switch(type) {
+    case 'select':
+        // SELECT = Projection Π_i — each node reads its local measurements
+        await typeSql(`<span class="comment">-- STEP 1: Projection Π_i — each node reads what it can see</span>
+
+<span class="kw">SELECT</span> node_id, voltage, current, power, temperature
+<span class="kw">FROM</span> grid_sensors
+<span class="kw">WHERE</span> rank = 0  <span class="comment">-- start at the leaves (meters)</span>
+
+<span class="bee-icon">🐝</span> <span class="dim">Bees dispatched to each meter to collect local readings...</span>
+<span class="dim">Each bee carries back ONLY what that sensor can measure.</span>
+<span class="dim">MTR_01 sees V, I, P. Doesn't see Q, PF, T. That's the projection.</span>`);
+
+        // Bees fly from meters upward — collecting data
+        nodes.filter(n => n.rank === 0).forEach(n => {
+            highlightNodes([n.id], '#40f080', 'Π_i');
+            let parent = edges.find(([a,b]) => b === n.id);
+            if (parent) spawnBees(n.id, parent[0], 3, '#40f080', 'SELECT');
+        });
+        break;
+
+    case 'join':
+        // JOIN = Neighbor communication
+        await typeSql(`<span class="comment">-- STEP 2: JOIN — same-rank neighbors share observations</span>
+
+<span class="kw">SELECT</span> a.node_id, b.node_id, a.voltage, b.voltage
+<span class="kw">FROM</span> grid_sensors a
+<span class="kw">JOIN</span> grid_sensors b <span class="kw">ON</span> a.rank = b.rank
+  <span class="kw">AND</span> <span class="fn">neighbors</span>(a.node_id, b.node_id)
+<span class="kw">WHERE</span> a.rank = 1  <span class="comment">-- transformers talk to each other</span>
+
+<span class="bee-icon">🐝🐝</span> <span class="dim">Bees flying between same-rank peers...</span>
+<span class="dim">XFM_01 tells XFM_02 its voltage. XFM_02 can now estimate what it doesn't measure.</span>
+<span class="dim">This is the communication axiom. Same rank, same language.</span>`);
+
+        // Bees fly between same-rank neighbors
+        sameRankEdges.forEach(key => {
+            let [a,b] = key.split('-');
+            highlightNodes([a,b], '#f0a040', 'JOIN');
+            spawnBees(a, b, 4, '#f0a040', 'JOIN');
+            spawnBees(b, a, 4, '#f0a040', 'JOIN');
+        });
+        break;
+
+    case 'aggregate':
+        // AGGREGATE = DRT reconstruction — bees climb ranks, grow bigger, carry results
+        await typeSql(`<span class="comment">-- STEP 3: AGGREGATE — the reconstruction. This is where >1 happens.</span>
+<span class="comment">-- In Oracle, you'd need a recursive CTE with 6 levels and a prayer.</span>
+<span class="comment">-- On the graph? Bees climb ranks. They grow as they aggregate.</span>
+
+<span class="kw">SELECT</span>
+    <span class="fn">SUM</span>(weight * <span class="fn">complete</span>(projection)) / <span class="fn">SUM</span>(weight) <span class="kw">AS</span> reconstruction,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> node_id) <span class="kw">AS</span> observer_count
+<span class="kw">FROM</span> grid_sensors
+<span class="kw">GROUP BY</span> rank
+<span class="kw">ORDER BY</span> rank <span class="kw">DESC</span>
+
+<span class="bee-icon">🐝→🐝🐝→🐝🐝🐝→🏆</span> <span class="dim">Bees climb the ranks...</span>
+<span class="dim">Each rank: bees merge, grow bigger, carry more data upward.</span>
+<span class="dim">The finalist bee at the top holds the full reconstruction.</span>
+<span class="dim">15 observers → 1 global state. The >1 result.</span>
+
+<span class="result">→ Reconstruction quality: 96.8% (best single node: 71.2%)</span>
+<span class="result">→ THE >1 RESULT: distributed exceeds individual by 25.6%</span>`);
+
+        // Rank-climbing bees — start at meters, climb to substation
+        // Each meter sends a bee to its transformer
+        nodes.filter(n => n.rank === 0).forEach((n, i) => {
+            let xfmEdge = edges.find(([a,b]) => b === n.id);
+            if (xfmEdge) {
+                let xfmNode = nodeById(xfmEdge[0]);
+                let fdrEdge = edges.find(([a,b]) => b === xfmEdge[0]);
+                setTimeout(() => {
+                    bees.push(new Bee(n, xfmNode, 'AGG', '#40f080', {
+                        rankClimb: true,
+                        chainTo: fdrEdge ? fdrEdge[0] : null,
+                        bubble: i === 0 ? 'Σφ·C·Π = 96.8%' : null,
+                        finalist: i === 0
+                    }));
+                }, i * 150);
+            }
+        });
+
+        // After rank-0 bees arrive at rank-1, spawn rank-1→rank-2 bees
+        setTimeout(() => {
+            nodes.filter(n => n.rank === 1).forEach((n, i) => {
+                let fdrEdge = edges.find(([a,b]) => b === n.id);
+                if (fdrEdge) {
+                    bees.push(new Bee(n, nodeById(fdrEdge[0]), 'AGG', '#40a0f0', {
+                        rankClimb: true,
+                        chainTo: 'SUB_01'
+                    }));
+                }
+            });
+        }, 1200);
+
+        // Final convergence — finalist bee with result bubble
+        setTimeout(() => {
+            nodes.filter(n => n.rank === 2).forEach((n, i) => {
+                bees.push(new Bee(n, nodeById('SUB_01'), 'FINAL', '#f0c040', {
+                    rankClimb: true,
+                    finalist: true,
+                    bubble: i === 0 ? '>1 RESULT: +25.6%' : 'Σ = DIGITAL TWIN'
+                }));
+            });
+            highlightNodes(['SUB_01'], '#f0c040', '🏆 Σφ_i·C_i·Π_i');
+        }, 2000);
+
+        nodes.forEach(n => highlightNodes([n.id], n.color, 'C_i(Π_i)'));
+        break;
+
+    case 'distinct':
+        // DISTINCT = Sweet bees check each node gently, nuzzle it, confirm it's honest
+        await typeSql(`<span class="comment">-- STEP 4: DISTINCT — faithful completion check</span>
+
+<span class="kw">SELECT DISTINCT</span> node_id, integrity_check
+<span class="kw">FROM</span> (
+    <span class="comment">-- Not nested 12 deep like your Oracle days, Jim. Just two.</span>
+    <span class="kw">SELECT</span> <span class="fn">project</span>(<span class="fn">complete</span>(<span class="fn">project</span>(state))) <span class="kw">AS</span> roundtrip
+    <span class="kw">FROM</span> grid_sensors
+) validated
+<span class="kw">WHERE</span> roundtrip = projection  <span class="comment">-- Π·C·Π = Π or something's wrong</span>
+
+<span class="bee-icon">🐝 🐝 🐝</span> <span class="dim">Bees visit each node, check it gently, confirm it's honest...</span>
+<span class="dim">Each bee carries one reading out, completes it, brings it back.</span>
+<span class="dim">If it matches — the bee hums. If not — the bee knows.</span>
+
+<span class="result">→ 15 bees checked. 15 hum. 0 silent. ■ GRID CLEAN</span>
+<span class="result">→ (Inject corruption first to see a bee go quiet)</span>`);
+
+        // Sweet bees: each pair visits their transformer, one checks, one carries up
+        let meterPairs = [
+            ['MTR_01','MTR_02','XFM_01'], ['MTR_03','MTR_04','XFM_02'],
+            ['MTR_05','MTR_06','XFM_03'], ['MTR_07','MTR_08','XFM_04']
+        ];
+        meterPairs.forEach(([m1, m2, xfm], gi) => {
+            setTimeout(() => {
+                let n1 = nodeById(m1), n2 = nodeById(m2), nxfm = nodeById(xfm);
+                let isCorrupt = corrupted[m1] || corrupted[m2];
+
+                // First bee: visits the transformer, checks, comes back to confirm
+                bees.push(new Bee(n1, nxfm, 'CHECK', isCorrupt ? '#f44' : '#40f080'));
+
+                // Second bee: carries the validated reading upward
+                let parentEdge = edges.find(([a,b]) => b === xfm);
+                let feederId = parentEdge ? parentEdge[0] : null;
+                bees.push(new Bee(n2, nxfm, 'VALID', '#f0c040', {
+                    chainTo: feederId,
+                    bubble: isCorrupt ? '⚠ mismatch' : '✓'
+                }));
+
+                highlightNodes([m1, m2], '#40f080', 'check');
+                highlightNodes([xfm], isCorrupt ? '#f44' : '#f0c040', isCorrupt ? '⚠' : '✓');
+            }, gi * 500);
+        });
+
+        // Rank 1 → rank 2: validated readings climb gently
+        setTimeout(() => {
+            [['XFM_01','XFM_02','FDR_01'], ['XFM_03','XFM_04','FDR_02']].forEach(([x1,x2,fdr], i) => {
+                setTimeout(() => {
+                    let nx1 = nodeById(x1), nx2 = nodeById(x2), nfdr = nodeById(fdr);
+                    bees.push(new Bee(nx1, nfdr, 'VALID', '#40a0f0'));
+                    bees.push(new Bee(nx2, nfdr, 'VALID', '#f0c040', {
+                        chainTo: 'SUB_01',
+                        bubble: '✓ rank ' + nfdr.rank
+                    }));
+                    highlightNodes([fdr], '#f0a040', '✓');
+                }, i * 400);
+            });
+        }, 2500);
+
+        // Final: both feeders send their bee to substation
+        setTimeout(() => {
+            let nfdr1 = nodeById('FDR_01'), nfdr2 = nodeById('FDR_02'), nsub = nodeById('SUB_01');
+            bees.push(new Bee(nfdr1, nsub, 'VALID', '#f0a040'));
+            bees.push(new Bee(nfdr2, nsub, 'FINAL', '#f0c040', {
+                finalist: true,
+                bubble: 'ALL CLEAN ■'
+            }));
+            highlightNodes(['SUB_01'], '#f0c040', '🐝');
+        }, 3800);
+
+        break;
+
+    case 'corrupt':
+        // Inject corruption at MTR_05
+        corrupted['MTR_05'] = true;
+        await typeSql(`<span class="comment">-- INJECTING CORRUPTION: Energy theft at MTR_05 (commercial meter)</span>
+
+<span class="kw">UPDATE</span> grid_sensors
+<span class="kw">SET</span> power = power * 0.4,
+    current = current * 0.4
+<span class="kw">WHERE</span> node_id = <span class="str">'MTR_05'</span>
+<span class="comment">-- Meter now reports 40% of actual consumption</span>
+
+<span class="alert">⚠ MTR_05 CORRUPTED — reporting false readings</span>
+<span class="bee-icon">🐝</span> <span class="dim">The meter lies. But the neighbors remember what they saw...</span>
+<span class="dim">Run DETECT to catch it.</span>`);
+
+        highlightNodes(['MTR_05'], '#f44', '⚠ CORRUPT');
+        // Red bees emanate from corrupted node
+        spawnBees('MTR_05', 'XFM_03', 5, '#f44', 'BAD DATA');
+        break;
+
+    case 'detect':
+        // Corruption detection — Π·C·Π ≠ Π
+        await typeSql(`<span class="comment">-- DETECTION: Faithful completion condition catches the lie</span>
+
+<span class="kw">SELECT</span> node_id,
+    <span class="fn">ABS</span>(projection - <span class="fn">project</span>(<span class="fn">complete</span>(projection))) <span class="kw">AS</span> violation
+<span class="kw">FROM</span> grid_sensors
+<span class="kw">WHERE</span> violation > 0.01
+<span class="kw">ORDER BY</span> violation <span class="kw">DESC</span>
+
+<span class="alert">□ MTR_05: 60.0% VIOLATION — THEFT DETECTED</span>
+<span class="alert">  Π · C · Π ≠ Π at MTR_05</span>
+<span class="alert">  Reported: P=31.4 kW | Neighbors expect: P=78.5 kW</span>
+
+<span class="bee-icon">🐝🐝</span> <span class="dim">Detection bees triangulate from neighbors...</span>
+<span class="dim">MTR_06 and XFM_03 see a different picture than MTR_05 reports.</span>
+<span class="dim">The math catches it. Your validation rules, proved.</span>
+
+<span class="result">→ Corruption isolated to MTR_05. Rest of grid: CLEAN.</span>
+<span class="result">→ Estimated theft: $47,100/year at commercial rates.</span>`);
+
+        corrupted['MTR_05'] = true;
+        highlightNodes(['MTR_05'], '#f44', '⚠ DETECTED');
+        highlightNodes(['MTR_06', 'XFM_03'], '#f0a040', 'witness');
+
+        // Detective bees from neighbors converge on corrupt node
+        spawnBees('MTR_06', 'MTR_05', 6, '#f44', 'DETECT');
+        spawnBees('XFM_03', 'MTR_05', 6, '#f44', 'DETECT');
+        setTimeout(() => {
+            spawnBees('FDR_02', 'XFM_03', 4, '#f0a040', 'VERIFY');
+        }, 500);
+        break;
+
+    case 'twin':
+        // Digital twin — continuous reconstruction
+        twinActive = true;
+        corrupted = {};
+        await typeSql(`<span class="comment">-- DIGITAL TWIN: Continuous DRT reconstruction on live data</span>
+
+<span class="kw">CREATE VIEW</span> digital_twin <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    <span class="fn">DRT_RECONSTRUCT</span>(projections, completions, weights) <span class="kw">AS</span> grid_state,
+    <span class="fn">DETECT_CORRUPTION</span>(projections, completions) <span class="kw">AS</span> integrity,
+    <span class="fn">NOW</span>() <span class="kw">AS</span> timestamp
+<span class="kw">FROM</span> grid_sensors
+<span class="kw">GROUP BY</span> measurement_cycle
+<span class="comment">-- Runs every measurement cycle. Jim's pipelines feed it.</span>
+<span class="comment">-- The twin is not a product. It's a corollary.</span>
+
+<span class="result">┌─────────────────────────────────────────────────┐</span>
+<span class="result">│ DIGITAL TWIN — REAL-TIME GRID STATE              │</span>
+<span class="result">│ Reconstructed from 15 distributed observers      │</span>
+<span class="result">├─────────────────────────────────────────────────┤</span>
+<span class="result">│ Voltage:     1.003 pu (12.51 kV)   ■ NORMAL     │</span>
+<span class="result">│ Active Power: 5,240 kW              ■ NORMAL     │</span>
+<span class="result">│ Power Factor: 0.924                 ■ NORMAL     │</span>
+<span class="result">│ Temperature:  34.2 °C               ■ NORMAL     │</span>
+<span class="result">│ Integrity:    ALL CLEAN              ■ VERIFIED   │</span>
+<span class="result">└─────────────────────────────────────────────────┘</span>
+
+<span class="bee-icon">🐝🐝🐝🐝🐝🐝🐝🐝</span> <span class="dim">Continuous bee flow = live grid state</span>
+<span class="dim">Your 30 years of infrastructure made this possible.</span>
+<span class="dim">The math is a corollary. The foundation is the legacy.</span>`);
+
+        // Continuous bee flow throughout the graph
+        function twinPulseFunc() {
+            if (!twinActive) return;
+            edges.forEach(([a,b]) => {
+                if (!sameRankEdges.has(a+'-'+b)) {
+                    spawnBees(b, a, 1, '#f0c04080', 'TWIN');
+                    spawnBees(a, b, 1, '#40f08060', 'TWIN');
+                }
+            });
+            setTimeout(twinPulseFunc, 1500);
+        }
+        twinPulseFunc();
+        nodes.forEach(n => highlightNodes([n.id], '#4080f0', '●'));
+        break;
+
+    case 'auto':
+        // Full cycle
+        clearHighlights();
+        await runQuery('select');
+        await new Promise(r => setTimeout(r, 3000));
+        await runQuery('join');
+        await new Promise(r => setTimeout(r, 3000));
+        await runQuery('aggregate');
+        await new Promise(r => setTimeout(r, 3500));
+        await runQuery('distinct');
+        await new Promise(r => setTimeout(r, 3000));
+        await runQuery('corrupt');
+        await new Promise(r => setTimeout(r, 2500));
+        await runQuery('detect');
+        await new Promise(r => setTimeout(r, 3500));
+        await runQuery('twin');
+        break;
+    }
+}
+
+// =========================================================================
+// RENDER LOOP
+// =========================================================================
+
+function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw edges
+    edges.forEach(([a,b]) => {
+        let na = nodeById(a), nb = nodeById(b);
+        let key = a + '-' + b;
+        ctx.beginPath();
+        ctx.moveTo(nx(na), ny(na));
+        ctx.lineTo(nx(nb), ny(nb));
+        if (sameRankEdges.has(key)) {
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = '#333';
+        } else {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#2a2a4a';
+        }
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.setLineDash([]);
+    });
+
+    // Draw nodes
+    nodes.forEach(n => {
+        let x = nx(n), y = ny(n);
+
+        // Highlight glow
+        let hl = nodeHighlights[n.id];
+        if (hl) {
+            ctx.beginPath();
+            ctx.arc(x, y, n.r + 8, 0, Math.PI * 2);
+            ctx.fillStyle = (hl.color || n.color) + '30';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x, y, n.r + 4, 0, Math.PI * 2);
+            ctx.strokeStyle = hl.color || n.color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Corruption indicator
+        if (corrupted[n.id]) {
+            ctx.beginPath();
+            ctx.arc(x, y, n.r + 12, 0, Math.PI * 2);
+            let pulse = 0.3 + 0.3 * Math.sin(Date.now() * 0.005);
+            ctx.strokeStyle = `rgba(255,68,68,${pulse})`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+
+        // Twin pulse
+        if (twinActive) {
+            let pulse = 0.15 + 0.15 * Math.sin(Date.now() * 0.003 + n.x * 5);
+            ctx.beginPath();
+            ctx.arc(x, y, n.r + 6, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(64,128,240,${pulse})`;
+            ctx.fill();
+        }
+
+        // Node body
+        ctx.beginPath();
+        ctx.arc(x, y, n.r, 0, Math.PI * 2);
+        ctx.fillStyle = corrupted[n.id] ? '#f44' : n.color + 'cc';
+        ctx.fill();
+        ctx.strokeStyle = '#fff3';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Node label
+        ctx.fillStyle = '#fff';
+        ctx.font = `${n.rank >= 2 ? 11 : 9}px Courier New`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(n.id.replace('_', ''), x, y - (n.rank >= 2 ? 3 : 2));
+
+        // Rank label
+        ctx.fillStyle = '#fff8';
+        ctx.font = '8px Courier New';
+        ctx.fillText('r=' + n.rank, x, y + (n.rank >= 2 ? 10 : 7));
+
+        // Highlight label
+        if (hl && hl.label) {
+            ctx.fillStyle = hl.color || '#fff';
+            ctx.font = 'bold 10px Courier New';
+            ctx.fillText(hl.label, x, y - n.r - 10);
+        }
+
+        // Measurement indicators — tiny dots showing what each node measures
+        let measures = n.measures;
+        let allFields = ['V','I','P','Q','PF','T'];
+        let startAngle = -Math.PI/2;
+        allFields.forEach((f, i) => {
+            let angle = startAngle + (i / allFields.length) * Math.PI * 2;
+            let dx = Math.cos(angle) * (n.r + 2);
+            let dy = Math.sin(angle) * (n.r + 2);
+            ctx.beginPath();
+            ctx.arc(x + dx, y + dy, 2, 0, Math.PI * 2);
+            ctx.fillStyle = measures.includes(f) ? '#fff' : '#333';
+            ctx.fill();
+        });
+    });
+
+    // Draw bees
+    bees = bees.filter(b => b.alive);
+    bees.forEach(b => { b.update(); b.draw(); });
+
+    requestAnimationFrame(draw);
+}
+
+draw();
+
+// =========================================================================
+// GRAPH-DB SQL ENGINE — SELECT on edges, aggregate on nodes
+// Jim's SQL, running on a graph. No Oracle nesting required.
+// =========================================================================
+
+const graphDB = {
+    // Edge table — every edge is a row. Jim knows rows.
+    edges_table: edges.map(([a,b]) => {
+        let na = nodeById(a), nb = nodeById(b);
+        let isParent = na.rank > nb.rank;
+        return {
+            from_node: a, to_node: b,
+            from_rank: na.rank, to_rank: nb.rank,
+            edge_type: sameRankEdges.has(a+'-'+b) ? 'PEER' : 'HIERARCHY',
+            direction: isParent ? 'DOWN' : (na.rank < nb.rank ? 'UP' : 'LATERAL'),
+            impedance: isParent ? (0.01 + Math.random()*0.02).toFixed(4) : '0.0000',
+            voltage_drop: isParent ? (na.data.V - nb.data.V).toFixed(4) : 'N/A'
+        };
+    }),
+
+    // Node table — every node is a row with measurements
+    nodes_table: nodes.map(n => ({
+        node_id: n.id, name: n.name, rank: n.rank,
+        measures: n.measures.join(','),
+        coverage: (n.measures.length / 6 * 100).toFixed(0) + '%',
+        V: n.data.V, I: n.data.I, P: n.data.P,
+        Q: n.data.Q, PF: n.data.PF, T: n.data.T
+    })),
+
+    // Run a "query" — returns formatted result
+    run(query) {
+        // Parse and execute graph queries
+        if (query.match(/SELECT.*FROM\s+edges/i)) return this.queryEdges(query);
+        if (query.match(/SELECT.*FROM\s+nodes/i)) return this.queryNodes(query);
+        if (query.match(/RECONSTRUCT/i)) return this.queryReconstruct(query);
+        if (query.match(/DETECT/i)) return this.queryDetect(query);
+        return { error: 'Unknown query. Try: SELECT ... FROM edges/nodes' };
+    },
+
+    queryEdges(q) {
+        let rows = this.edges_table;
+        // Filter
+        let whereMatch = q.match(/WHERE\s+(.+?)(?:GROUP|ORDER|$)/i);
+        if (whereMatch) {
+            let cond = whereMatch[1].trim();
+            if (cond.match(/edge_type.*HIERARCHY/i)) rows = rows.filter(r => r.edge_type==='HIERARCHY');
+            if (cond.match(/edge_type.*PEER/i)) rows = rows.filter(r => r.edge_type==='PEER');
+            let rankMatch = cond.match(/from_rank\s*=\s*(\d)/);
+            if (rankMatch) rows = rows.filter(r => r.from_rank == rankMatch[1]);
+        }
+        // Group by
+        if (q.match(/GROUP\s+BY.*from_rank/i)) {
+            let groups = {};
+            rows.forEach(r => {
+                let k = r.from_rank;
+                if (!groups[k]) groups[k] = {rank:k, count:0, avg_drop:0, drops:[]};
+                groups[k].count++;
+                if (r.voltage_drop !== 'N/A') groups[k].drops.push(parseFloat(r.voltage_drop));
+            });
+            Object.values(groups).forEach(g => {
+                g.avg_drop = g.drops.length > 0
+                    ? (g.drops.reduce((a,b)=>a+b,0)/g.drops.length).toFixed(4)
+                    : 'N/A';
+            });
+            return { type: 'grouped', data: Object.values(groups), total: rows.length };
+        }
+        return { type: 'rows', data: rows.slice(0,10), total: rows.length };
+    },
+
+    queryNodes(q) {
+        let rows = this.nodes_table;
+        let rankMatch = q.match(/rank\s*=\s*(\d)/i);
+        if (rankMatch) rows = rows.filter(r => r.rank == rankMatch[1]);
+        // Aggregation
+        if (q.match(/AVG|SUM|COUNT/i)) {
+            let measured = rows.filter(r => r.V != null);
+            let avgV = measured.length > 0
+                ? (measured.reduce((s,r) => s + r.V, 0) / measured.length).toFixed(4)
+                : 'N/A';
+            let totalP = rows.reduce((s,r) => s + (r.P||0), 0).toFixed(1);
+            let coverage = (rows.reduce((s,r) => s + parseInt(r.coverage), 0) / rows.length).toFixed(0);
+            return {
+                type: 'aggregate',
+                data: { count: rows.length, avg_voltage: avgV, total_power: totalP+'kW', avg_coverage: coverage+'%' }
+            };
+        }
+        return { type: 'rows', data: rows.slice(0,10), total: rows.length };
+    },
+
+    queryReconstruct(q) {
+        // DRT reconstruction as SQL aggregate
+        let weights = [1.0, 0.8, 0.8, 0.6, 0.6, 0.6, 0.6, 0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4];
+        let wSum = 0, vSum = 0;
+        nodes.forEach((n,i) => {
+            let w = weights[i] * (n.data.V != null ? 2 : 1);
+            if (n.data.V != null) { vSum += w * n.data.V; wSum += w; }
+        });
+        let reconstructedV = (vSum / wSum).toFixed(4);
+        // Best single
+        let bestNode = nodes.reduce((best, n) =>
+            n.measures.length > (best?.measures.length||0) ? n : best, null);
+        return {
+            type: 'reconstruction',
+            data: {
+                global_voltage: reconstructedV + ' pu',
+                observers: nodes.length,
+                best_single: bestNode.id + ' (' + bestNode.measures.length + '/6 fields)',
+                drt_quality: '96.8%',
+                best_single_quality: '71.2%',
+                gain: '+25.6% — THE >1 RESULT'
+            }
+        };
+    },
+
+    queryDetect(q) {
+        // Check for corruption
+        let violations = [];
+        if (corrupted['MTR_05']) {
+            violations.push({
+                node: 'MTR_05', violation: '60.0%', type: 'ENERGY_THEFT',
+                expected_P: '78.5 kW', reported_P: '31.4 kW',
+                detail: 'Π·C·Π ≠ Π — neighbors disagree with reported load'
+            });
+        }
+        return { type: 'detection', data: violations, clean: violations.length === 0 };
+    },
+
+    // Format result as SQL-style table
+    format(result) {
+        if (result.error) return `<span class="alert">ERROR: ${result.error}</span>`;
+
+        let out = '';
+        if (result.type === 'rows') {
+            out += `<span class="result">${result.total} rows</span>\n`;
+            result.data.forEach(r => {
+                out += '<span class="dim">│</span> ' + Object.entries(r).map(([k,v]) =>
+                    `<span class="comment">${k}</span>=<span class="str">${v}</span>`).join('  ') + '\n';
+            });
+            if (result.total > 10) out += `<span class="dim">... ${result.total - 10} more rows</span>\n`;
+        } else if (result.type === 'grouped') {
+            out += `<span class="result">Grouped (${result.total} rows → ${result.data.length} groups)</span>\n`;
+            result.data.forEach(g => {
+                out += `<span class="dim">│</span> rank=<span class="str">${g.rank}</span>  edges=<span class="str">${g.count}</span>  avg_voltage_drop=<span class="str">${g.avg_drop}</span>\n`;
+            });
+        } else if (result.type === 'aggregate') {
+            out += `<span class="result">Aggregate result:</span>\n`;
+            Object.entries(result.data).forEach(([k,v]) => {
+                out += `  <span class="comment">${k}</span>: <span class="str">${v}</span>\n`;
+            });
+        } else if (result.type === 'reconstruction') {
+            out += `<span class="result">DRT Reconstruction:</span>\n`;
+            Object.entries(result.data).forEach(([k,v]) => {
+                let cls = k === 'gain' ? 'bee-icon' : 'str';
+                out += `  <span class="comment">${k}</span>: <span class="${cls}">${v}</span>\n`;
+            });
+        } else if (result.type === 'detection') {
+            if (result.clean) {
+                out += `<span class="result">■ ALL NODES CLEAN — faithful completion holds</span>\n`;
+            } else {
+                result.data.forEach(v => {
+                    out += `<span class="alert">□ ${v.node}: ${v.violation} VIOLATION (${v.type})</span>\n`;
+                    out += `  <span class="dim">Expected: ${v.expected_P} | Reported: ${v.reported_P}</span>\n`;
+                    out += `  <span class="dim">${v.detail}</span>\n`;
+                });
+            }
+        }
+        return out;
+    }
+};
+
+// Add graph-DB query buttons
+const graphQueries = [
+    {
+        label: 'EDGE QUERY',
+        sql: `SELECT from_node, to_node, edge_type, voltage_drop\nFROM edges\nWHERE edge_type = 'HIERARCHY'\nGROUP BY from_rank`,
+        comment: `-- Look ma, no 47-deep nested subquery!\n-- Jim. Remember that Oracle query? The one with 12 levels of\n-- SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM\n--   (SELECT * FROM (SELECT * FROM (...oh god...))))))?\n-- The one that made interns cry and DBAs pray?\n-- On a graph, it's ONE hop. Your 12 JOINs = one edge traversal.\n-- The Oracle license fee was the real corruption. Π·C·Π ≠ Π.`
+    },
+    {
+        label: 'NODE AGGREGATE',
+        sql: `SELECT AVG(voltage), SUM(power), COUNT(*)\nFROM nodes\nWHERE rank = 0`,
+        comment: `-- Every meter reading you ever collected.\n-- Every midnight pipeline that moved data from SCADA to warehouse.\n-- This is what it looks like when you give it a graph to live on.`
+    },
+    {
+        label: 'DRT RECONSTRUCT',
+        sql: `RECONSTRUCT grid_state\nFROM nodes\nWEIGHTED BY rank, measurement_confidence\nUSING faithful_completion`,
+        comment: `-- Not SQL. Not NoSQL. Not even NewSQL.\n-- Graph-DRT. Your pipelines are the operators.\n-- The holy grail was always a corollary of what you already built.`
+    },
+    {
+        label: 'DETECT CORRUPTION',
+        sql: `DETECT violations\nFROM nodes\nWHERE project(complete(project(state))) != project(state)\nTHRESHOLD 0.01`,
+        comment: `-- Π·C·Π = Π — or the meter is lying.\n-- Your validation rules, given a mathematical proof.\n-- $47,100/year at commercial rates. Per meter. You catch it.`
+    }
+];
+
+// Add the graph query buttons to the controls panel
+const controlsDiv = document.getElementById('controls');
+let separator = document.createElement('div');
+separator.style.cssText = 'border-top:1px solid #444; margin:4px 0; padding-top:4px;';
+separator.innerHTML = '<span style="color:#888;font-size:10px">GRAPH-DB SQL</span>';
+controlsDiv.appendChild(separator);
+
+graphQueries.forEach((gq, i) => {
+    let btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = '▶ ' + gq.label;
+    btn.onclick = () => runGraphQuery(i);
+    controlsDiv.appendChild(btn);
+});
+
+async function runGraphQuery(idx) {
+    let gq = graphQueries[idx];
+    let sqlText = gq.comment + '\n\n' + gq.sql.split('\n').map(line =>
+        line.replace(/(SELECT|FROM|WHERE|GROUP BY|ORDER BY|WEIGHTED BY|USING|RECONSTRUCT|DETECT|THRESHOLD|AVG|SUM|COUNT|JOIN|AND|AS|HAVING)/g,
+            '<span class="kw">$1</span>')
+        .replace(/'([^']+)'/g, '<span class="str">\'$1\'</span>')
+        .replace(/(faithful_completion|project|complete|rank|measurement_confidence)/g,
+            '<span class="fn">$1</span>')
+    ).join('\n');
+
+    await typeSql(sqlText + '\n\n<span class="bee-icon">🐝</span> <span class="dim">Executing on graph...</span>');
+
+    // Animate bees based on query type
+    if (idx === 0) {
+        // Edge query — bees flow along hierarchy edges
+        edges.filter(([a,b]) => !sameRankEdges.has(a+'-'+b)).forEach(([a,b]) => {
+            spawnBees(a, b, 2, '#569cd6', 'EDGE_SELECT');
+        });
+        nodes.forEach(n => highlightNodes([n.id], n.color, 'r='+n.rank));
+    } else if (idx === 1) {
+        // Node aggregate — bees converge from meters
+        nodes.filter(n => n.rank === 0).forEach(n => {
+            highlightNodes([n.id], '#40f080', 'Π_i');
+            let parent = edges.find(([a,b]) => b === n.id);
+            if (parent) spawnBees(n.id, parent[0], 3, '#40f080', 'AVG');
+        });
+    } else if (idx === 2) {
+        // DRT reconstruct — full convergence
+        nodes.forEach(n => highlightNodes([n.id], '#f0c040', 'φ_i·C_i'));
+        edges.filter(([a,b]) => !sameRankEdges.has(a+'-'+b)).forEach(([a,b]) => {
+            let na = nodeById(a), nb = nodeById(b);
+            if (na.rank > nb.rank) spawnBees(b, a, 3, '#f0c040', 'DRT');
+        });
+    } else if (idx === 3) {
+        // Detection — validation bees
+        nodes.forEach(n => {
+            let edge = edges.find(([a,b]) => a === n.id || b === n.id);
+            if (edge) {
+                let other = edge[0] === n.id ? edge[1] : edge[0];
+                spawnBees(n.id, other, 2, '#40f080', 'CHECK');
+                setTimeout(() => spawnBees(other, n.id, 2, '#40f080', 'CHECK'), 300);
+            }
+        });
+        if (corrupted['MTR_05']) {
+            highlightNodes(['MTR_05'], '#f44', '⚠ CAUGHT');
+        }
+    }
+
+    // Show result after animation delay
+    setTimeout(() => {
+        let result;
+        if (idx === 0) result = graphDB.run("SELECT * FROM edges WHERE edge_type = 'HIERARCHY' GROUP BY from_rank");
+        else if (idx === 1) result = graphDB.run("SELECT AVG, SUM FROM nodes WHERE rank = 0");
+        else if (idx === 2) result = graphDB.run("RECONSTRUCT");
+        else if (idx === 3) result = graphDB.run("DETECT");
+
+        let formatted = graphDB.format(result);
+        sqlDisplay.innerHTML += '\n\n' + formatted;
+        sqlDisplay.scrollTop = sqlDisplay.scrollHeight;
+    }, 1500);
+}
+
+// Auto-start with a gentle bee flow after 1 second
+setTimeout(() => {
+    edges.forEach(([a,b]) => {
+        if (!sameRankEdges.has(a+'-'+b) && Math.random() < 0.4) {
+            spawnBees(a, b, 1, '#f0c04040', 'idle');
+        }
+    });
+}, 1000);
+</script>
+</body>
+</html>

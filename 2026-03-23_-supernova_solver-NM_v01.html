@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DRT Phase 6: Supernova 3D Solver</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #050508; overflow: hidden; font-family: 'Courier New', monospace; color:#ccc;}
+canvas { display: block; width: 100vw; height: 100vh; position:absolute; top:0; left:0; z-index:1; }
+
+.header { position: absolute; top: 15px; width: 100%; text-transform: uppercase; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #fff; z-index: 50; text-align: center; pointer-events: none;}
+.sub-header { font-size: 11px; color: #d0b060; letter-spacing: 2px; margin-top: 5px; }
+.nav-link { border: 1px solid; border-radius: 3px; padding: 6px 12px; font-size: 11px; cursor: pointer; text-decoration: none; font-weight: bold; pointer-events: auto; background:rgba(10,10,15,0.4); backdrop-filter:blur(4px); transition:0.2s;}
+.nav-link:hover { background: rgba(255,255,255,0.1); }
+
+#controls {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 12px; z-index: 50; align-items: center;
+}
+#controls button {
+  background: rgba(10,10,15,0.85); border: 1px solid rgba(255,255,255,0.3);
+  color: #fff; padding: 10px 20px; cursor: pointer; border-radius: 4px;
+  font-family: inherit; font-size: 11px; font-weight: bold; transition: all 0.2s; letter-spacing:1px;
+}
+#controls button:hover { background: rgba(255,255,255,0.2); box-shadow:0 0 15px rgba(255,255,255,0.2); }
+#controls button.active { border-color: #d0b060; color: #d0b060; box-shadow:0 0 15px rgba(208,176,96,0.3); }
+
+#status-log {
+  position: absolute; left: 20px; bottom: 20px; width: 300px;
+  max-height: 150px; overflow-y: hidden; z-index: 50;
+  font-size: 10px; color: #888; display:flex; flex-direction:column; justify-content:flex-end;
+}
+.log-line { margin-top:4px; opacity:0; animation: fadein 0.3s forwards; }
+@keyframes fadein { to { opacity:1; } }
+.log-line .t { color:#555; margin-right:8px; }
+
+</style>
+</head>
+<body>
+
+<div class="header">
+    SUPERNOVA SOLVER
+    <div class="sub-header">3D SOCRATIC SPHERE DECOMPOSITION · MCP/4090 BOUND</div>
+    
+    <div style="display:flex; gap:10px; margin-top:15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; justify-content:center; pointer-events:auto;">
+        <a href="2026-03-23_-generator-NM_v01.html" class="nav-link" style="color:#ff3b30; border-color:#ff3b30;">01 COMPOSER</a>
+        <a href="2026-03-23_-scanner-NM_v01.html" class="nav-link" style="color:#ff9f0a; border-color:#ff9f0a;">02 SCANNER</a>
+        <a href="2026-03-23_-pipeline-NM_v01.html" class="nav-link" style="color:#e07060; border-color:#e07060;">03 PIPELINE</a>
+        <a href="2026-03-23_-cell_simulator-NM_v01.html" class="nav-link" style="color:#34c759; border-color:#34c759;">04 BIO BRAIN</a>
+        <a href="2026-03-23_-harmonic_solver-NM_v01.html" class="nav-link" style="color:#0a84ff; border-color:#0a84ff;">05 ORBITAL SOLVER</a>
+        <a href="2026-03-23_-supernova_solver-NM_v01.html" class="nav-link" style="color:#d0b060; border-color:#d0b060; background:rgba(208,176,96,0.15); box-shadow:0 0 20px rgba(208,176,96,0.2);">06 SUPERNOVA 3D</a>
+    </div>
+</div>
+
+<div id="status-log"></div>
+
+<div id="controls">
+  <button id="btn-propose">1. QUEEN PROPOSE PROBLEM</button>
+  <button id="btn-snap">2. SNAP LOCK (EIGENVECTORS)</button>
+  <button id="btn-ribo">3. BACK RIBOSOME PASS (X27)</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+// === LOGGING ===
+function log(msg, color="#ccc") {
+    const d = new Date();
+    const t = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+    const el = document.createElement('div');
+    el.className = 'log-line';
+    el.innerHTML = `<span class="t">[${t}]</span><span style="color:${color}">${msg}</span>`;
+    const logBox = document.getElementById('status-log');
+    logBox.appendChild(el);
+    if(logBox.children.length > 8) logBox.removeChild(logBox.firstChild);
+}
+log("SUPERNOVA 3D ENVIROMENT MOUNTED");
+
+// === 3D ENGINE && CONFIG ===
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+const RANKS = 7;
+const BASE_R = 45;
+const SPACING = 50;
+const TILT = 0.4;
+const COS_T = Math.cos(TILT);
+const SIN_T = Math.sin(TILT);
+
+let globalTime = 0;
+let phaseState = 'idle'; // idle | forward | snap | ribo
+
+const sphereSpeeds = [];
+const sphereAngles = [];
+const sphereTargets = []; // Eigenvector lock positions
+for(let i=0; i<RANKS; i++) {
+    sphereSpeeds.push((Math.random() > 0.5 ? 1 : -1) * (0.01 + 0.02 * (RANKS - i))); // Faster inner
+    sphereAngles.push(0);
+    // Determine mathematical lock points (Multiples of Pi/6)
+    sphereTargets.push((Math.floor(Math.random()*12) * Math.PI)/6);
+}
+
+// === NODE GENERATION ===
+const nodes = [];
+const RANK_COLORS = ['#ffc832', '#ff8c28', '#ff503c', '#d23cb4', '#6450dc', '#28a0c8', '#28c878'];
+
+for (let r=0; r<RANKS; r++) {
+    const count = r === 0 ? 8 : (r === RANKS-1 ? 32 : 8 + r*4); // Inner=sparse, outer=dense
+    for (let i=0; i<count; i++) {
+        // Distribute mathematically on sphere
+        const phi = Math.acos(1 - 2*(i+0.5)/count);
+        const theta = Math.PI * (1 + Math.sqrt(5)) * i; 
+        nodes.push({ r, phi, theta: theta % (Math.PI*2), active: false, id: `${r}-${i}`, light: 0 });
+    }
+}
+
+// Generate Intra-sphere Constellations (Edges)
+const intraEdges = [];
+nodes.forEach((n1, i) => {
+    nodes.slice(i+1).forEach(n2 => {
+        if(n1.r !== n2.r) return;
+        const dPhi = Math.abs(n1.phi - n2.phi);
+        const dTheta = Math.abs(n1.theta - n2.theta);
+        if (dPhi < 0.6 && dTheta < 0.6) {
+            intraEdges.push({ a: n1, b: n2, active:false });
+        }
+    });
+});
+
+// Generate Inter-sphere Fiber Pipes
+const interEdges = [];
+for (let r=0; r<RANKS-1; r++) {
+    const current = nodes.filter(n=>n.r===r);
+    const next = nodes.filter(n=>n.r===r+1);
+    current.forEach(c => {
+        // Connect to nearest 2 nodes in next rank
+        const sorted = next.map(nx => {
+            const dp = Math.abs(c.phi - nx.phi);
+            const dt = Math.abs(c.theta - nx.theta);
+            return { nx, dist: dp*dp + dt*dt };
+        }).sort((a,b)=>a.dist - b.dist);
+        interEdges.push({ a: c, b: sorted[0].nx, active: false, flow:0 });
+        interEdges.push({ a: c, b: sorted[1].nx, active: false, flow:0 });
+    });
+}
+
+// === DRT QUEEN TOKENS ===
+const tokens = ["[AWAIT]", "[LISTEN]", "[Q_EIGEN]", "[MCP_PARSE]", "[SPARTA]", "[DECODE]"];
+let activeTokens = [];
+
+// === RIBOSOMES (3^3 = 27 AGENTS) ===
+const ribosomes = [];
+for(let i=0; i<27; i++) {
+    ribosomes.push({ active: false, path: [], progress: 0, node: null });
+}
+
+// === 3D PROJECTION MATH ===
+function project(r, phi, theta, rankAngle) {
+    const R = BASE_R + r * SPACING;
+    const finalTheta = theta + rankAngle;
+    
+    // Spherical to Cartesian
+    const x3 = R * Math.sin(phi) * Math.cos(finalTheta);
+    const z3 = R * Math.sin(phi) * Math.sin(finalTheta);
+    const y3 = R * Math.cos(phi);
+
+    // Apply global tilt (rotate around X axis)
+    const yP = y3 * COS_T - z3 * SIN_T;
+    const zP = y3 * SIN_T + z3 * COS_T;
+
+    return { x: cx + x3, y: cy + yP, z: zP, depth: (zP + R) / (2 * R) };
+}
+
+// === DRAW LOOP ===
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    cx = W/2; cy = H/2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+let lastT = performance.now();
+function render(now) {
+    const dt = Math.min((now - lastT)/1000, 0.05);
+    lastT = now;
+    globalTime += dt;
+
+    // Logic updates
+    for(let r=0; r<RANKS; r++) {
+        if(phaseState !== 'snap' && phaseState !== 'ribo') {
+            sphereAngles[r] += sphereSpeeds[r];
+        } else if (phaseState === 'snap') {
+            // Interpolate to target
+            const diff = sphereTargets[r] - sphereAngles[r];
+            sphereAngles[r] += diff * dt * 2.0;
+        }
+    }
+
+    // Ribosome logic
+    ribosomes.forEach(rb => {
+        if(!rb.active) return;
+        rb.progress += dt;
+        if(rb.progress >= 1.0) {
+            rb.progress = 0;
+            // Move inwards
+            if(rb.node && rb.node.r > 0) {
+                // find inward edge
+                const edge = interEdges.find(e => e.b === rb.node);
+                if(edge) rb.node = edge.a;
+                else rb.active = false;
+            } else {
+                rb.active = false; // reached center
+            }
+        }
+    });
+
+    // Clear
+    ctx.fillStyle = 'rgba(5, 5, 8, 0.4)'; // Motion blur trail
+    ctx.fillRect(0,0,W,H);
+
+    // Pre-calculate projections
+    nodes.forEach(n => {
+        const p = project(n.r, n.phi, n.theta, sphereAngles[n.r]);
+        n.px = p.x; n.py = p.y; n.pz = p.z; n.depth = p.depth;
+    });
+
+    // Draw Inactive & Intrasphere
+    ctx.lineWidth = 0.5;
+    intraEdges.forEach(e => {
+        if (e.a.depth > 0 && e.b.depth > 0) {
+            ctx.beginPath(); ctx.moveTo(e.a.px, e.a.py); ctx.lineTo(e.b.px, e.b.py);
+            ctx.strokeStyle = `rgba(255,255,255,${0.02 + Math.random()*0.02})`;
+            ctx.stroke();
+        }
+    });
+
+    // Draw Inter-sphere Light Pipes
+    ctx.lineWidth = 1;
+    interEdges.forEach(e => {
+        ctx.beginPath(); ctx.moveTo(e.a.px, e.a.py); ctx.lineTo(e.b.px, e.b.py);
+        if(e.flow > 0) {
+            e.flow -= dt * 2;
+            ctx.strokeStyle = `rgba(208, 176, 96, ${e.flow})`;
+            ctx.lineWidth = 2;
+        } else {
+            ctx.strokeStyle = `rgba(100,100,150,0.03)`;
+        }
+        ctx.stroke();
+    });
+
+    // Draw Nodes (Gem Stars)
+    nodes.sort((a,b) => a.pz - b.pz).forEach(n => {
+        let size = 1.5 + n.depth * 2;
+        let alpha = 0.2 + n.depth * 0.8;
+        if(n.active) {
+            size *= 2;
+            n.light -= dt;
+            if(n.light < 0) n.active = false;
+        }
+        
+        ctx.fillStyle = RANK_COLORS[n.r];
+        ctx.globalAlpha = alpha;
+        
+        // Star cross
+        ctx.beginPath();
+        ctx.moveTo(n.px - size, n.py); ctx.lineTo(n.px + size, n.py);
+        ctx.moveTo(n.px, n.py - size); ctx.lineTo(n.px, n.py + size);
+        ctx.strokeStyle = RANK_COLORS[n.r];
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(n.px, n.py, size*0.5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
+    // Draw Ribosomes
+    ribosomes.forEach(rb => {
+        if(!rb.active || !rb.node) return;
+        // find visual pos
+        let rx = rb.node.px; let ry = rb.node.py;
+        // if moving inward
+        if(rb.node.r > 0) {
+            const edge = interEdges.find(e => e.b === rb.node);
+            if(edge) {
+                rx = rb.node.px + (edge.a.px - rb.node.px) * rb.progress;
+                ry = rb.node.py + (edge.a.py - rb.node.py) * rb.progress;
+            }
+        }
+        ctx.beginPath(); ctx.arc(rx, ry, Math.random()*3+2, 0, Math.PI*2);
+        ctx.shadowColor = '#fff'; ctx.shadowBlur = 10;
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    // Draw Center Queen & Tokens
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = '#d0b060';
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(cx, cy, 5 + Math.sin(globalTime*5)*2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    activeTokens.forEach((tk, i) => {
+        tk.life -= dt;
+        tk.y -= dt * 20;
+        ctx.globalAlpha = tk.life;
+        ctx.fillStyle = '#d0b060';
+        ctx.font = '11px monospace';
+        ctx.fillText(tk.text, cx + 15, cy + tk.y);
+        ctx.globalAlpha = 1;
+
+        if(tk.life < 0) activeTokens.splice(i, 1);
+    });
+
+    requestAnimationFrame(render);
+}
+render(performance.now());
+
+// === SEQUENCES ===
+document.getElementById('btn-propose').addEventListener('click', (e) => {
+    e.target.classList.add('active');
+    phaseState = 'forward';
+    log("Queen instantiated Socratic geometry. Forward Pass mapping...", "#ff9f0a");
+    
+    // Spawn tokens
+    let d = 0;
+    tokens.forEach(t => {
+        setTimeout(() => { activeTokens.push({ text: t, life: 2.0, y: 0}); }, d);
+        d += 400;
+    });
+
+    // Light up forward pipes
+    let pipeDelay = 0;
+    for(let r=0; r<RANKS-1; r++) {
+        setTimeout(() => {
+            const pipes = interEdges.filter(e => e.a.r === r);
+            pipes.forEach(p => { p.flow = 1.0; p.a.active=true; p.b.active=true; p.b.light=1.0; });
+        }, pipeDelay);
+        pipeDelay += 300;
+    }
+});
+
+document.getElementById('btn-snap').addEventListener('click', (e) => {
+    e.target.classList.add('active');
+    phaseState = 'snap';
+    log("Locking topological Eigenvectors. Spheres snapping to key alignment...", "#0a84ff");
+    
+    // Light all after 1.5s
+    setTimeout(() => {
+        nodes.forEach(n => { n.active = true; n.light = 2.0; });
+        log("Alignment strict. Metric matrix solved.", "#34c759");
+    }, 1500);
+});
+
+document.getElementById('btn-ribo').addEventListener('click', (e) => {
+    e.target.classList.add('active');
+    phaseState = 'ribo';
+    log("Back Ribosome pass executing. (3^3 = 27 agents) tracing to origin.", "#bf5af2");
+    
+    let rbDelay = 0;
+    ribosomes.forEach(rb => {
+        setTimeout(() => {
+            rb.reset();
+            rb.active = true;
+        }, rbDelay);
+        rbDelay += 80; // stagger spawn
+    });
+
+    setTimeout(() => {
+        activeTokens.push({ text: "[PROBLEM_SOLVED]", life: 5.0, y: -20});
+        log("Decode complete. Result returned to Queen.", "#d0b060");
+    }, 3000);
+});
+
+// ── CLAUDE CODE MCP WEBSOCKET BRIDGE ──
+const ws = new WebSocket('ws://localhost:5540');
+ws.onopen = () => console.log('[KV Revolver] Connected to Claude Code Socket.');
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.action === 'trigger_snap_lock') {
+    console.log('[DRT] Received 27-Step Matrix:', data.payload);
+    document.getElementById('simState').innerText = `EXECUTING: ${data.payload.problem_summary}`;
+    
+    let stepCount = 0;
+    const interval = setInterval(() => {
+        if(stepCount >= 27) {
+            clearInterval(interval);
+            document.getElementById('simState').innerText = "SYSTEM: EIGENVECTOR SNAP LOCK STABILIZED";
+            document.getElementById('simState').style.color = "#00ffaa";
+            snapTargetX = 0; snapTargetY = 0; snapTargetZ = 0; // Lock to origin
+            return;
+        }
+        
+        let step = data.payload.ribosome_traversal[stepCount];
+        document.getElementById('simState').innerText = `RIBOSOME ${step.step_id}/27 [${step.action}] \nVAR: ${step.socratic_variable}`;
+        
+        // Spin the entire 3D array mapping 
+        targetRotX += step.shift_value * 0.5;
+        targetRotY += step.shift_value * 0.8;
+
+        stepCount++;
+    }, 400);
+  }
+};
+</script>
+</body>
+</html>

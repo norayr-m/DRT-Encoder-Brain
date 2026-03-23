@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JimDirBee — The City</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #060612;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    height: 100vh;
+    cursor: grab;
+}
+body.dragging { cursor: grabbing; }
+
+canvas { position: absolute; top: 0; left: 0; }
+#bgCanvas { z-index: 0; }
+#mainCanvas { z-index: 1; }
+#beeCanvas { z-index: 2; }
+
+#ui {
+    position: absolute; top: 0; left: 0; z-index: 10;
+    width: 100%; height: 100%;
+    pointer-events: none;
+}
+
+#header {
+    text-align: center;
+    padding: 10px;
+    background: rgba(6,6,18,0.9);
+    border-bottom: 1px solid #1a1a3a;
+    pointer-events: auto;
+}
+#header h1 { font-size: 16px; color: #f0c040; letter-spacing: 3px; }
+#header .sub { font-size: 10px; color: #666; margin-top: 2px; }
+
+#stats {
+    position: absolute;
+    top: 50px; left: 12px;
+    background: rgba(6,6,18,0.92);
+    border: 1px solid #1a1a3a;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.8;
+    pointer-events: auto;
+    min-width: 200px;
+}
+.stat-label { color: #666; }
+.stat-value { color: #f0c040; }
+.stat-unit { color: #444; }
+.stat-good { color: #40f080; }
+.stat-warn { color: #f0a040; }
+.stat-bad { color: #f44; }
+
+#controls {
+    position: absolute;
+    top: 50px; right: 12px;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.btn {
+    background: rgba(12,12,24,0.9);
+    border: 1px solid #222;
+    color: #f0c040;
+    padding: 6px 14px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s;
+    text-align: left;
+}
+.btn:hover { background: rgba(30,30,50,0.9); border-color: #f0c040; }
+.btn.active { background: rgba(240,192,64,0.15); border-color: #f0c040; }
+
+#sql-panel {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(6,6,18,0.95);
+    border-top: 1px solid #1a1a3a;
+    padding: 8px 16px;
+    pointer-events: auto;
+    max-height: 28vh;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    transition: max-height 0.3s;
+}
+#sql-panel.collapsed { max-height: 32px; overflow: hidden; }
+#sql-toggle {
+    position: absolute; top: -20px; right: 16px;
+    background: rgba(6,6,18,0.95);
+    border: 1px solid #1a1a3a;
+    border-bottom: none;
+    color: #666;
+    padding: 2px 10px;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 3px 3px 0 0;
+    pointer-events: auto;
+}
+
+.kw { color: #569cd6; }
+.fn { color: #dcdcaa; }
+.str { color: #ce9178; }
+.comment { color: #6a9955; }
+.result { color: #4ec9b0; }
+.bee-icon { color: #f0c040; }
+.alert { color: #f44; }
+.dim { color: #444; }
+
+#time-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: #111;
+    z-index: 11;
+    pointer-events: none;
+}
+#time-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1a1a4a, #f0c040, #f04040, #f0c040, #1a1a4a);
+    transition: width 0.5s linear;
+}
+
+#zoom-info {
+    position: absolute;
+    bottom: 35px; right: 12px;
+    color: #333;
+    font-size: 10px;
+    pointer-events: none;
+}
+
+#district-label {
+    position: absolute;
+    top: 42px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #333;
+    font-size: 11px;
+    letter-spacing: 2px;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<canvas id="mainCanvas"></canvas>
+<canvas id="beeCanvas"></canvas>
+
+<div id="ui">
+    <div id="header">
+        <h1>JimDirBee — THE CITY</h1>
+        <div class="sub">Your Pipelines Are Projection Operators &nbsp;·&nbsp; Three-phase neuron: Jim's &nbsp;·&nbsp; C. Anoian & N. Matevosyan</div>
+    </div>
+
+    <div id="district-label"></div>
+
+    <div id="stats">
+        <div><span class="stat-label">Nodes:</span> <span class="stat-value" id="s-nodes">—</span></div>
+        <div><span class="stat-label">Substations:</span> <span class="stat-value" id="s-subs">—</span></div>
+        <div><span class="stat-label">Feeders:</span> <span class="stat-value" id="s-fdrs">—</span></div>
+        <div><span class="stat-label">Transformers:</span> <span class="stat-value" id="s-xfms">—</span></div>
+        <div><span class="stat-label">Meters:</span> <span class="stat-value" id="s-mtrs">—</span></div>
+        <div style="border-top:1px solid #1a1a3a; margin:4px 0; padding-top:4px">
+            <span class="stat-label">Active Bees:</span> <span class="stat-value" id="s-bees">—</span>
+        </div>
+        <div><span class="stat-label">Time:</span> <span class="stat-value" id="s-time">—</span></div>
+        <div><span class="stat-label">Grid Load:</span> <span class="stat-value" id="s-load">—</span></div>
+        <div><span class="stat-label">Avg Voltage:</span> <span class="stat-value" id="s-voltage">—</span></div>
+        <div><span class="stat-label">Integrity:</span> <span id="s-integrity" class="stat-good">■ CLEAN</span></div>
+        <div style="border-top:1px solid #1a1a3a; margin:4px 0; padding-top:4px">
+            <span class="stat-label">DRT Quality:</span> <span class="stat-value" id="s-drt">—</span>
+        </div>
+        <div><span class="stat-label">Best Single:</span> <span class="stat-value" id="s-best">—</span></div>
+        <div><span class="stat-label">>1 Result:</span> <span class="stat-good" id="s-gain">—</span></div>
+    </div>
+
+    <div id="controls">
+        <button class="btn" onclick="setSpeed(0)">⏸ Pause</button>
+        <button class="btn active" onclick="setSpeed(1)">▶ Normal</button>
+        <button class="btn" onclick="setSpeed(3)">▶▶ Fast</button>
+        <button class="btn" onclick="setSpeed(10)">▶▶▶ Rush Hour</button>
+        <div style="border-top:1px solid #222; margin:2px 0"></div>
+        <button class="btn" onclick="toggleBees()">🐝 Toggle Bees</button>
+        <button class="btn" onclick="toggleHeat()">🌡 Heat Map</button>
+        <button class="btn" onclick="injectCorruption()">⚠ Inject Theft</button>
+        <button class="btn" onclick="clearCorruption()">✓ Clear Corruption</button>
+        <button class="btn" onclick="resetView()">⊡ Reset View</button>
+    </div>
+
+    <div id="sql-panel">
+        <div id="sql-display">
+<span class="comment">-- THE CITY: ~1000 nodes, 4 substations, 20 feeders, 160 transformers, 800+ meters</span>
+<span class="comment">-- Scroll to zoom. Drag to pan. Watch the bees flow.</span>
+<span class="comment">-- This is Jim's infrastructure, alive on the graph.</span>
+<span class="comment">-- Every bee is a query. Every hum is data validated.</span>
+        </div>
+    </div>
+
+    <div id="zoom-info"></div>
+</div>
+
+<script>
+// =========================================================================
+// CITY GRID GENERATOR
+// =========================================================================
+
+const bgCanvas = document.getElementById('bgCanvas');
+const mainCanvas = document.getElementById('mainCanvas');
+const beeCanvas = document.getElementById('beeCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+const ctx = mainCanvas.getContext('2d');
+const bCtx = beeCanvas.getContext('2d');
+
+let W, H;
+function resize() {
+    W = bgCanvas.width = mainCanvas.width = beeCanvas.width = window.innerWidth;
+    H = bgCanvas.height = mainCanvas.height = beeCanvas.height = window.innerHeight;
+    drawBackground();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Camera
+let cam = { x: 0, y: 0, zoom: 1, targetZoom: 1, targetX: 0, targetY: 0 };
+
+// City dimensions (world coordinates)
+const CITY_W = 2000;
+const CITY_H = 1600;
+
+// Seed RNG for deterministic city
+let seed = 42;
+function rng() {
+    seed = (seed * 16807 + 0) % 2147483647;
+    return (seed - 1) / 2147483646;
+}
+function rngGauss() {
+    return (rng() + rng() + rng() + rng() - 2) / 2;
+}
+
+// =========================================================================
+// DISTRICT DEFINITIONS — the neighborhoods
+// =========================================================================
+
+const districts = [
+    { name: 'DOWNTOWN',     cx: 1000, cy: 800,  r: 300, type: 'commercial', density: 1.2, color: '#f0c040' },
+    { name: 'NORTHSIDE',    cx: 800,  cy: 300,  r: 280, type: 'residential', density: 1.0, color: '#40f080' },
+    { name: 'EASTPORT',     cx: 1500, cy: 600,  r: 260, type: 'mixed',       density: 0.9, color: '#40a0f0' },
+    { name: 'WESTPARK',     cx: 400,  cy: 600,  r: 250, type: 'residential', density: 0.8, color: '#40f080' },
+    { name: 'SOUTH INDUSTRIAL', cx: 1000, cy: 1300, r: 300, type: 'industrial', density: 0.7, color: '#f0a040' },
+    { name: 'HILLCREST',    cx: 300,  cy: 1100, r: 200, type: 'residential', density: 0.6, color: '#40f080' },
+    { name: 'LAKEVIEW',     cx: 1600, cy: 1100, r: 220, type: 'residential', density: 0.7, color: '#40f080' },
+];
+
+// =========================================================================
+// TOPOLOGY GENERATION
+// =========================================================================
+
+const allNodes = [];
+const allEdges = [];
+let substations = [], feeders = [], transformers = [], meters = [];
+
+function generateCity() {
+    seed = 42;
+
+    // 4 Substations
+    const subPositions = [
+        { x: 500,  y: 400,  name: 'SUB_NORTH' },
+        { x: 1500, y: 400,  name: 'SUB_EAST' },
+        { x: 500,  y: 1200, name: 'SUB_WEST' },
+        { x: 1500, y: 1200, name: 'SUB_SOUTH' },
+    ];
+
+    subPositions.forEach((sp, si) => {
+        let sub = {
+            id: sp.name, name: sp.name, rank: 3,
+            x: sp.x, y: sp.y,
+            color: '#f04040', r: 14,
+            children: [],
+            voltage: 1.02 + rngGauss() * 0.005,
+            load: 0, corrupted: false,
+            measures: ['V','I','P','Q','PF','T']
+        };
+        allNodes.push(sub);
+        substations.push(sub);
+
+        // 5 feeders per substation
+        for (let fi = 0; fi < 5; fi++) {
+            let angle = (fi / 5) * Math.PI * 2 + si * 0.3;
+            let dist = 150 + rng() * 80;
+            let fx = sp.x + Math.cos(angle) * dist;
+            let fy = sp.y + Math.sin(angle) * dist;
+            // Clamp to city
+            fx = Math.max(60, Math.min(CITY_W - 60, fx));
+            fy = Math.max(60, Math.min(CITY_H - 60, fy));
+
+            let fdr = {
+                id: `FDR_${si}_${fi}`, name: `Feeder ${si*5+fi+1}`, rank: 2,
+                x: fx, y: fy,
+                color: '#f0a040', r: 9,
+                children: [],
+                voltage: sub.voltage - (0.005 + rng() * 0.01),
+                load: 0, corrupted: false,
+                measures: ['V','I','P']
+            };
+            allNodes.push(fdr);
+            feeders.push(fdr);
+            sub.children.push(fdr.id);
+            allEdges.push([sub.id, fdr.id]);
+
+            // 8 transformers per feeder
+            for (let ti = 0; ti < 8; ti++) {
+                let tAngle = (ti / 8) * Math.PI * 2 + rng() * 0.5;
+                let tDist = 60 + rng() * 50;
+                let tx = fx + Math.cos(tAngle) * tDist;
+                let ty = fy + Math.sin(tAngle) * tDist;
+                tx = Math.max(30, Math.min(CITY_W - 30, tx));
+                ty = Math.max(30, Math.min(CITY_H - 30, ty));
+
+                let xfm = {
+                    id: `XFM_${si}_${fi}_${ti}`, rank: 1,
+                    name: `Xfmr ${si*40+fi*8+ti+1}`,
+                    x: tx, y: ty,
+                    color: '#40a0f0', r: 5,
+                    children: [],
+                    voltage: fdr.voltage - (0.002 + rng() * 0.005),
+                    load: 0, corrupted: false,
+                    measures: ['V']
+                };
+                allNodes.push(xfm);
+                transformers.push(xfm);
+                fdr.children.push(xfm.id);
+                allEdges.push([fdr.id, xfm.id]);
+
+                // 5 meters per transformer
+                for (let mi = 0; mi < 5; mi++) {
+                    let mAngle = (mi / 5) * Math.PI * 2 + rng() * 0.8;
+                    let mDist = 15 + rng() * 20;
+                    let mx = tx + Math.cos(mAngle) * mDist;
+                    let my = ty + Math.sin(mAngle) * mDist;
+
+                    // Determine meter type from district
+                    let district = districts.find(d => {
+                        let dx = mx - d.cx, dy = my - d.cy;
+                        return Math.sqrt(dx*dx + dy*dy) < d.r;
+                    });
+                    let mType = district ? district.type : 'residential';
+                    let baseLoad = mType === 'commercial' ? 60 : mType === 'industrial' ? 200 : 12;
+
+                    let mtr = {
+                        id: `MTR_${si}_${fi}_${ti}_${mi}`, rank: 0,
+                        name: `Meter ${si*200+fi*40+ti*5+mi+1}`,
+                        x: mx, y: my,
+                        color: '#40f080', r: 2.5,
+                        children: [],
+                        voltage: xfm.voltage - (0.001 + rng() * 0.003),
+                        load: baseLoad + rngGauss() * baseLoad * 0.3,
+                        corrupted: false,
+                        meterType: mType,
+                        baseLoad: baseLoad,
+                        measures: ['V','I','P']
+                    };
+                    allNodes.push(mtr);
+                    meters.push(mtr);
+                    xfm.children.push(mtr.id);
+                    allEdges.push([xfm.id, mtr.id]);
+                }
+            }
+        }
+    });
+
+    // Update stats
+    document.getElementById('s-nodes').textContent = allNodes.length;
+    document.getElementById('s-subs').textContent = substations.length;
+    document.getElementById('s-fdrs').textContent = feeders.length;
+    document.getElementById('s-xfms').textContent = transformers.length;
+    document.getElementById('s-mtrs').textContent = meters.length;
+}
+
+// Node lookup
+const nodeMap = {};
+function buildLookup() {
+    allNodes.forEach(n => nodeMap[n.id] = n);
+}
+
+// =========================================================================
+// TIME SIMULATION
+// =========================================================================
+
+let simTime = 6; // hours (0-24), start at 6am
+let simSpeed = 1;
+let showBees = true;
+let showHeat = false;
+
+function loadProfile(hour, type) {
+    // Realistic load curves
+    let h = hour % 24;
+    let base;
+    if (type === 'residential') {
+        // Morning peak 7-9, evening peak 17-21, low overnight
+        base = 0.3 + 0.2 * Math.exp(-((h-8)**2)/4) + 0.5 * Math.exp(-((h-19)**2)/6);
+    } else if (type === 'commercial') {
+        // Business hours 8-18
+        base = 0.2 + 0.7 * Math.exp(-((h-13)**2)/12);
+    } else { // industrial
+        // Steady with slight overnight dip
+        base = 0.6 + 0.3 * Math.exp(-((h-14)**2)/20);
+    }
+    return Math.max(0.15, Math.min(1.0, base));
+}
+
+function updateSimulation() {
+    if (simSpeed === 0) return;
+
+    simTime += simSpeed * 0.002;
+    if (simTime >= 24) simTime -= 24;
+
+    let hour = simTime;
+    let totalLoad = 0;
+    let totalV = 0;
+    let vCount = 0;
+
+    meters.forEach(m => {
+        let profile = loadProfile(hour, m.meterType);
+        m.load = m.baseLoad * profile * (0.8 + rng() * 0.4);
+        m.voltage = 1.0 - m.load * 0.0003 + rngGauss() * 0.002;
+        if (m.corrupted) m.load *= 0.4; // theft
+        totalLoad += m.load;
+        totalV += m.voltage;
+        vCount++;
+    });
+
+    // Propagate up
+    transformers.forEach(xfm => {
+        xfm.load = xfm.children.reduce((s, cid) => s + (nodeMap[cid]?.load || 0), 0);
+        xfm.voltage = 1.0 - xfm.load * 0.00005;
+    });
+    feeders.forEach(fdr => {
+        fdr.load = fdr.children.reduce((s, cid) => s + (nodeMap[cid]?.load || 0), 0);
+        fdr.voltage = 1.0 - fdr.load * 0.000005;
+    });
+    substations.forEach(sub => {
+        sub.load = sub.children.reduce((s, cid) => s + (nodeMap[cid]?.load || 0), 0);
+    });
+
+    // Update stats
+    let h = Math.floor(simTime);
+    let m = Math.floor((simTime - h) * 60);
+    document.getElementById('s-time').textContent = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+    document.getElementById('s-load').textContent = (totalLoad/1000).toFixed(1) + ' MW';
+    document.getElementById('s-voltage').textContent = (totalV/vCount).toFixed(4) + ' pu';
+    document.getElementById('s-bees').textContent = bees.length;
+
+    let corruptCount = meters.filter(m => m.corrupted).length;
+    let intEl = document.getElementById('s-integrity');
+    if (corruptCount > 0) {
+        intEl.textContent = `□ ${corruptCount} VIOLATIONS`;
+        intEl.className = 'stat-bad';
+    } else {
+        intEl.textContent = '■ CLEAN';
+        intEl.className = 'stat-good';
+    }
+
+    // DRT stats
+    let drtQ = 96.8 - corruptCount * 0.5;
+    document.getElementById('s-drt').textContent = drtQ.toFixed(1) + '%';
+    document.getElementById('s-best').textContent = '71.2%';
+    document.getElementById('s-gain').textContent = '+' + (drtQ - 71.2).toFixed(1) + '%';
+}
+
+// =========================================================================
+// BEES
+// =========================================================================
+
+let bees = [];
+const MAX_BEES = 600;
+
+class Bee {
+    constructor(from, to, color) {
+        this.fx = from.x; this.fy = from.y;
+        this.tx = to.x; this.ty = to.y;
+        this.t = 0;
+        this.speed = 0.005 + rng() * 0.008;
+        this.alive = true;
+        this.color = color || '#f0c040';
+        this.size = 1.5 + rng() * 1.5;
+        this.wobblePhase = rng() * 6.28;
+        this.wobbleAmp = 2 + rng() * 4;
+    }
+
+    update() {
+        this.t += this.speed * simSpeed;
+        if (this.t >= 1) { this.alive = false; return; }
+
+        let x = this.fx + (this.tx - this.fx) * this.t;
+        let y = this.fy + (this.ty - this.fy) * this.t;
+
+        let dx = this.tx - this.fx;
+        let dy = this.ty - this.fy;
+        let len = Math.sqrt(dx*dx + dy*dy) || 1;
+        let wobble = Math.sin(this.t * 18 + this.wobblePhase) * this.wobbleAmp;
+        x += (-dy/len) * wobble;
+        y += (dx/len) * wobble;
+
+        this.cx = x;
+        this.cy = y;
+    }
+
+    draw(ctx, cam) {
+        if (!this.alive) return;
+        let sx = (this.cx - cam.x) * cam.zoom + W/2;
+        let sy = (this.cy - cam.y) * cam.zoom + H/2;
+        let sr = this.size * cam.zoom;
+
+        if (sx < -10 || sx > W+10 || sy < -10 || sy > H+10) return;
+        if (sr < 0.5) return;
+
+        // Glow
+        ctx.fillStyle = this.color + '40';
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr * 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wings if zoomed in enough
+        if (sr > 2) {
+            let wingPhase = Date.now() * 0.03 + this.wobblePhase;
+            ctx.fillStyle = this.color + '30';
+            let wSize = sr * 0.8 * (0.5 + 0.5 * Math.sin(wingPhase));
+            ctx.beginPath();
+            ctx.arc(sx - sr, sy - sr * 0.5, wSize, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(sx + sr, sy - sr * 0.5, wSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+}
+
+function spawnBees() {
+    if (!showBees || simSpeed === 0) return;
+    if (bees.length > MAX_BEES) return;
+
+    let count = Math.floor(simSpeed * 3);
+
+    for (let i = 0; i < count; i++) {
+        // Pick a random edge and send a bee along it
+        let ei = Math.floor(rng() * allEdges.length);
+        let [fromId, toId] = allEdges[ei];
+        let from = nodeMap[fromId];
+        let to = nodeMap[toId];
+        if (!from || !to) continue;
+
+        // Direction: mostly upward (data collection), sometimes downward (commands)
+        let goUp = rng() < 0.7;
+        let src = goUp ? to : from;
+        let dst = goUp ? from : to;
+
+        // Color by rank
+        let colors = ['#40f080', '#40a0f0', '#f0a040', '#f04040'];
+        let color = colors[Math.min(src.rank, 3)];
+
+        // Corrupt nodes get red bees
+        if (src.corrupted || dst.corrupted) color = '#f44';
+
+        bees.push(new Bee(src, dst, color));
+    }
+}
+
+// =========================================================================
+// CAMERA / PAN / ZOOM
+// =========================================================================
+
+let isDragging = false;
+let dragStartX, dragStartY, camStartX, camStartY;
+
+beeCanvas.addEventListener('mousedown', e => {
+    isDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    camStartX = cam.x;
+    camStartY = cam.y;
+    document.body.classList.add('dragging');
+});
+
+window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    cam.x = camStartX - (e.clientX - dragStartX) / cam.zoom;
+    cam.y = camStartY - (e.clientY - dragStartY) / cam.zoom;
+    cam.targetX = cam.x;
+    cam.targetY = cam.y;
+});
+
+window.addEventListener('mouseup', () => {
+    isDragging = false;
+    document.body.classList.remove('dragging');
+});
+
+beeCanvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    let factor = e.deltaY > 0 ? 0.9 : 1.1;
+    cam.targetZoom = Math.max(0.3, Math.min(8, cam.targetZoom * factor));
+}, { passive: false });
+
+// Double-click to center on node
+beeCanvas.addEventListener('dblclick', e => {
+    let worldX = (e.clientX - W/2) / cam.zoom + cam.x;
+    let worldY = (e.clientY - H/2) / cam.zoom + cam.y;
+
+    // Find nearest node
+    let nearest = null, nearDist = Infinity;
+    allNodes.forEach(n => {
+        let d = Math.sqrt((n.x - worldX)**2 + (n.y - worldY)**2);
+        if (d < nearDist) { nearDist = d; nearest = n; }
+    });
+
+    if (nearest && nearDist < 50 / cam.zoom) {
+        cam.targetX = nearest.x;
+        cam.targetY = nearest.y;
+        cam.targetZoom = Math.max(cam.targetZoom, 3);
+
+        // Show node info in SQL panel
+        let sql = document.getElementById('sql-display');
+        let fields = nearest.measures.join(', ');
+        let kids = nearest.children ? nearest.children.length : 0;
+        sql.innerHTML = `<span class="comment">-- Node: ${nearest.id}</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> grid_nodes <span class="kw">WHERE</span> id = <span class="str">'${nearest.id}'</span>
+
+<span class="result">rank: ${nearest.rank}  |  voltage: ${nearest.voltage.toFixed(4)} pu  |  load: ${nearest.load.toFixed(1)} kW</span>
+<span class="result">measures: [${fields}]  |  children: ${kids}  |  corrupted: ${nearest.corrupted}</span>
+${nearest.corrupted ? '<span class="alert">⚠ FAITHFUL COMPLETION VIOLATION: Π·C·Π ≠ Π</span>' : '<span class="stat-good">■ Faithful completion: PASS</span>'}`;
+    }
+});
+
+function resetView() {
+    cam.targetX = CITY_W / 2;
+    cam.targetY = CITY_H / 2;
+    cam.targetZoom = Math.min(W / CITY_W, H / CITY_H) * 0.8;
+}
+
+function smoothCamera() {
+    cam.zoom += (cam.targetZoom - cam.zoom) * 0.1;
+    cam.x += (cam.targetX - cam.x) * 0.08;
+    cam.y += (cam.targetY - cam.y) * 0.08;
+}
+
+// =========================================================================
+// BACKGROUND — dark city grid
+// =========================================================================
+
+function drawBackground() {
+    bgCtx.fillStyle = '#060612';
+    bgCtx.fillRect(0, 0, W, H);
+
+    // Subtle grid pattern
+    bgCtx.strokeStyle = '#0a0a1a';
+    bgCtx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) {
+        bgCtx.beginPath(); bgCtx.moveTo(x, 0); bgCtx.lineTo(x, H); bgCtx.stroke();
+    }
+    for (let y = 0; y < H; y += 40) {
+        bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(W, y); bgCtx.stroke();
+    }
+}
+
+// =========================================================================
+// RENDER
+// =========================================================================
+
+function worldToScreen(wx, wy) {
+    return [(wx - cam.x) * cam.zoom + W/2, (wy - cam.y) * cam.zoom + H/2];
+}
+
+function isOnScreen(sx, sy, margin) {
+    return sx > -margin && sx < W + margin && sy > -margin && sy < H + margin;
+}
+
+function drawEdges() {
+    // Draw edges — thin lines, fade with distance
+    ctx.lineWidth = Math.max(0.3, 0.5 * cam.zoom);
+
+    allEdges.forEach(([fromId, toId]) => {
+        let from = nodeMap[fromId];
+        let to = nodeMap[toId];
+        if (!from || !to) return;
+
+        let [sx1, sy1] = worldToScreen(from.x, from.y);
+        let [sx2, sy2] = worldToScreen(to.x, to.y);
+
+        // Cull off-screen edges
+        if (!isOnScreen(sx1, sy1, 50) && !isOnScreen(sx2, sy2, 50)) return;
+
+        // Color by rank of parent
+        let alpha = Math.min(0.4, 0.1 + cam.zoom * 0.05);
+        if (from.rank >= 2) {
+            ctx.strokeStyle = `rgba(240,160,64,${alpha * 1.5})`;
+            ctx.lineWidth = Math.max(0.5, 1 * cam.zoom);
+        } else if (from.rank === 1) {
+            ctx.strokeStyle = `rgba(64,160,240,${alpha})`;
+            ctx.lineWidth = Math.max(0.3, 0.5 * cam.zoom);
+        } else {
+            ctx.strokeStyle = `rgba(64,240,128,${alpha * 0.5})`;
+            ctx.lineWidth = Math.max(0.2, 0.3 * cam.zoom);
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(sx1, sy1);
+        ctx.lineTo(sx2, sy2);
+        ctx.stroke();
+    });
+}
+
+function drawNodes() {
+    // Draw nodes — size and detail depend on zoom
+    allNodes.forEach(n => {
+        let [sx, sy] = worldToScreen(n.x, n.y);
+        if (!isOnScreen(sx, sy, 20)) return;
+
+        let sr = n.r * cam.zoom;
+        if (sr < 0.3) return; // too small to see
+
+        // Heat map mode
+        if (showHeat) {
+            let loadNorm = Math.min(1, n.load / (n.rank === 0 ? 50 : n.rank === 1 ? 400 : n.rank === 2 ? 3000 : 15000));
+            let r = Math.floor(loadNorm * 255);
+            let g = Math.floor((1 - loadNorm) * 100);
+            let b = Math.floor((1 - loadNorm) * 200);
+            ctx.fillStyle = `rgba(${r},${g},${b},0.8)`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr + 3 * cam.zoom, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Corruption glow
+        if (n.corrupted) {
+            let pulse = 0.3 + 0.3 * Math.sin(Date.now() * 0.005);
+            ctx.fillStyle = `rgba(255,68,68,${pulse})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr + 6 * cam.zoom, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Node body
+        ctx.fillStyle = n.corrupted ? '#f44' : n.color;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.arc(sx, sy, Math.max(sr, 1), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Label if zoomed in
+        if (sr > 4) {
+            ctx.fillStyle = '#fff';
+            ctx.font = `${Math.min(10, sr * 0.8)}px Courier New`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(n.id.split('_').slice(-2).join('_'), sx, sy - sr - 2);
+        }
+
+        // Voltage indicator if very zoomed
+        if (sr > 8) {
+            ctx.fillStyle = '#888';
+            ctx.font = '8px Courier New';
+            ctx.textBaseline = 'top';
+            ctx.fillText(n.voltage.toFixed(3) + 'pu', sx, sy + sr + 2);
+        }
+    });
+}
+
+function drawDistricts() {
+    // District overlays — very subtle
+    if (cam.zoom < 0.8) {
+        districts.forEach(d => {
+            let [sx, sy] = worldToScreen(d.cx, d.cy);
+            let sr = d.r * cam.zoom;
+
+            ctx.fillStyle = d.color + '08';
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = d.color + '15';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = d.color + '40';
+            ctx.font = '11px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText(d.name, sx, sy);
+            ctx.font = '9px Courier New';
+            ctx.fillStyle = '#444';
+            ctx.fillText(d.type, sx, sy + 14);
+        });
+    }
+}
+
+function render() {
+    smoothCamera();
+    updateSimulation();
+    spawnBees();
+
+    // Clear main canvas
+    ctx.clearRect(0, 0, W, H);
+    bCtx.clearRect(0, 0, W, H);
+
+    drawDistricts();
+    drawEdges();
+    drawNodes();
+
+    // Draw bees
+    bees = bees.filter(b => b.alive);
+    bees.forEach(b => {
+        b.update();
+        b.draw(bCtx, cam);
+    });
+
+    // Zoom info
+    document.getElementById('zoom-info').textContent = `zoom: ${cam.zoom.toFixed(1)}x`;
+
+    // District label
+    let centerX = cam.x;
+    let centerY = cam.y;
+    let currentDistrict = districts.find(d => {
+        let dx = centerX - d.cx, dy = centerY - d.cy;
+        return Math.sqrt(dx*dx + dy*dy) < d.r;
+    });
+    let dl = document.getElementById('district-label');
+    if (currentDistrict && cam.zoom > 1.5) {
+        dl.textContent = currentDistrict.name;
+        dl.style.opacity = '1';
+        dl.style.color = currentDistrict.color + '60';
+    } else {
+        dl.style.opacity = '0';
+    }
+
+    requestAnimationFrame(render);
+}
+
+// =========================================================================
+// CONTROLS
+// =========================================================================
+
+function setSpeed(s) {
+    simSpeed = s;
+    document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+function toggleBees() { showBees = !showBees; if (!showBees) bees = []; }
+function toggleHeat() { showHeat = !showHeat; }
+
+function injectCorruption() {
+    // Pick 5-10 random meters and corrupt them
+    let count = 5 + Math.floor(rng() * 6);
+    let corrupted_ids = [];
+    for (let i = 0; i < count; i++) {
+        let m = meters[Math.floor(rng() * meters.length)];
+        m.corrupted = true;
+        corrupted_ids.push(m.id);
+    }
+
+    let sql = document.getElementById('sql-display');
+    sql.innerHTML = `<span class="comment">-- CORRUPTION INJECTED: Energy theft at ${count} meters</span>
+
+<span class="kw">UPDATE</span> grid_sensors
+<span class="kw">SET</span> power = power * 0.4
+<span class="kw">WHERE</span> node_id <span class="kw">IN</span> (${corrupted_ids.slice(0,4).map(id => `<span class="str">'${id}'</span>`).join(', ')}...)
+
+<span class="alert">⚠ ${count} meters now reporting 40% of actual consumption</span>
+<span class="alert">  Estimated annual theft: $${(count * 47100).toLocaleString()}</span>
+<span class="bee-icon">🐝</span> <span class="dim">The bees know. Watch for red.</span>
+<span class="dim">Double-click a red node to see the faithful completion violation.</span>`;
+}
+
+function clearCorruption() {
+    meters.forEach(m => m.corrupted = false);
+    document.getElementById('sql-display').innerHTML = `<span class="result">■ All corruption cleared. Grid clean.</span>`;
+}
+
+// =========================================================================
+// BOOT
+// =========================================================================
+
+generateCity();
+buildLookup();
+resetView();
+
+// Initial camera position
+cam.x = cam.targetX;
+cam.y = cam.targetY;
+cam.zoom = cam.targetZoom;
+
+render();
+
+// Sunrise SQL message
+setTimeout(() => {
+    let sql = document.getElementById('sql-display');
+    sql.innerHTML = `<span class="comment">-- 06:00 — The city wakes up.</span>
+<span class="comment">-- ${allNodes.length} nodes. ${allEdges.length} edges. ${meters.length} meters.</span>
+<span class="comment">-- Every one of them is a row in Jim's database.</span>
+<span class="comment">-- Every edge is a JOIN he wrote at 2am.</span>
+<span class="comment">-- The bees are his pipelines, humming.</span>
+<span class="comment">--</span>
+<span class="comment">-- Scroll to zoom in. Drag to pan. Double-click a node.</span>
+<span class="comment">-- Hit ▶▶▶ Rush Hour to watch the load climb.</span>
+<span class="comment">-- Hit ⚠ Inject Theft to see what the bees catch.</span>
+<span class="comment">--</span>
+<span class="comment">-- 30 years of infrastructure → alive on the graph.</span>`;
+}, 500);
+</script>
+</body>
+</html>

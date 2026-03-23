@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRT: The 7-Column Scanner Signal QED</title>
+    <style>
+        body { margin: 0; background: #0b0c10; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; height: 100vh; overflow: hidden; padding-top: 10px;}
+        .header { font-size: 20px; font-weight: bold; color: #ff3b30; z-index: 10; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; display:flex; justify-content:space-between; width:95%; max-width:1600px; align-items:center;}
+        .explain-btn { padding: 8px 16px; background: rgba(255, 59, 48, 0.2); color: #ff3b30; border: 1px solid #ff3b30; border-radius: 6px; cursor: pointer; font-family: monospace; font-weight: bold; font-size: 14px; transition: 0.2s; box-shadow: 0 0 10px rgba(255,59,48,0.1);}
+        .explain-btn:hover { background: #ff3b30; color: #000; box-shadow: 0 0 20px #ff3b30;}
+
+        .main-container { display: flex; flex-direction: row-reverse; gap: 20px; align-items: flex-start; z-index: 10; position: relative; width: 95%; max-width: 1600px; margin: 0 auto; height: 90vh;}
+        
+        /* RIGHT PANEL: COL 0 MASTER SCANNER */
+        .col-0-master { display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255, 59, 48, 0.05); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 59, 48, 0.2); width: 320px; height: 100%; box-shadow: 0 0 30px rgba(255,59,48,0.1); position: relative; z-index: 20; flex-shrink: 0;}
+        .col-0-title { font-size: 16px; font-weight: bold; color: #ff3b30; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 10px #ff3b30;}
+        .col-0-sub { font-size: 10px; color: #aaa; margin-top: 5px; margin-bottom: 30px; text-align:center;}
+        
+        .euler-canvas-wrap { position: relative; width: 100%; height: 320px; }
+        .euler-canvas { width: 100%; height: 100%; position: absolute; top:0; left:0; z-index: 1;}
+        .formula-display { font-size: 12px; color: #ff3b30; margin-top: 15px; font-weight: bold; text-align: center; line-height: 1.5; background:rgba(0,0,0,0.5); padding:10px; border-radius:8px; border:1px solid #333; width: 80%;}
+        .play-btn { margin-top: 25px; padding: 12px 25px; background: #ff3b30; color: #fff; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; z-index: 50; font-family: monospace; font-size: 16px; transition: 0.1s;}
+        .play-btn:hover { background: #d32f2f; box-shadow: 0 0 15px #ff3b30;}
+
+        /* LEFT PANEL: INVERSE ARCHITECTURES */
+        .left-panel { display: flex; flex-direction: column; gap: 20px; flex-grow: 1; height: 100%; overflow-y: auto; overflow-x: hidden; padding-left:15px; z-index: 20; padding-bottom: 50px;}
+        .left-panel::-webkit-scrollbar { width: 8px; }
+        .left-panel::-webkit-scrollbar-track { background: #111; border-radius:4px;}
+        .left-panel::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; border: 1px solid #222;}
+        
+        .layer-box { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; width: 100%; background: rgba(255,255,255,0.02); padding: 15px 15px 25px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); position: relative; box-sizing: border-box;}
+        .layer-label { position: absolute; top: -10px; right: 20px; background: #0b0c10; padding: 2px 10px; font-size: 11px; font-weight: bold; border: 1px solid #333; border-radius: 4px; z-index: 10; white-space: nowrap;}
+        .edu-note { position: absolute; bottom: 5px; left: 20px; font-size: 9px; color: #666; font-style: italic; }
+
+        .col-box { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); width: 110px; height: 160px; flex-shrink: 0; justify-content: flex-start;}
+        .col-title { font-size: 9px; color: #aaa; margin-bottom: 5px; text-transform: uppercase; text-align: center; white-space: nowrap;}
+        
+        /* REVERSED COLUMNS */
+        .c7-input { width: 100%; height: 90px; margin-top: 20px; border-radius: 4px; background: rgba(52, 199, 89, 0.1); border: 1px solid #34c759; box-shadow: 0 0 15px rgba(52, 199, 89, 0.2); }
+        .c5-fft { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: 10px; }
+        .c5-fft-canvas { width: 100%; height: 20px; background: rgba(0,0,0,0.5); border-radius: 2px;}
+
+        .c4-dice { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+        .c4-dice-item { width: 18px; height: 18px; background: #333; border-radius: 4px; border: 1px solid #555; position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; padding: 2px;}
+        .c4-dice-item.active { background: #ff9f0a; border-color: #ff9f0a; box-shadow: 0 0 10px #ff9f0a; }
+        .c4-dice-item.resolved { background: #0a84ff; border-color: #0a84ff; box-shadow: 0 0 10px #0a84ff; }
+        .dot { width: 3px; height: 3px; background: #000; border-radius: 50%; position: absolute; }
+        .d-center{top:50%;left:50%;transform:translate(-50%,-50%);} .d-tl{top:2px;left:2px;} .d-tr{top:2px;right:2px;} .d-ml{top:50%;left:2px;transform:translateY(-50%);} .d-mr{top:50%;right:2px;transform:translateY(-50%);} .d-bl{bottom:2px;left:2px;} .d-br{bottom:2px;right:2px;}
+
+        .c3-matrix { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: 15px; }
+        .c3-row { height: 14px; background: #222; border-radius: 3px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#555;}
+        .c3-row.active { background: #0a84ff; color: #000; box-shadow: 0 0 10px #0a84ff; font-weight:bold; }
+        .c2-value, .c1-value { font-size: 26px; font-weight: bold; text-shadow: 0 0 10px; margin-top: 25px;}
+        .c2-value { color: #bf5af2; } .c1-value { color: #ff3b30; }
+
+        .nn-canvas-container { position: relative; width: 100%; min-width: 300px; max-width: 480px; height: 160px; background: rgba(0,0,0,0.4); border: 1px solid #333; border-radius: 8px; overflow: hidden; flex-shrink: 0;}
+        .nn-cvs { position: absolute; top:0; left:0; width:100%; height:100%; }
+
+        #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>DE-COMPOSER: INVERSE FOURIER SCANNER</div>
+        <!-- GLOBAL UNIFIED DRT TOPOLOGY NAV -->
+        <div style="display:flex; gap:10px; margin-top:20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; width:100%; justify-content:flex-end;">
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-generator-NM_v01.html'" style="border-color:#ff3b30; color:#ff3b30;">01 COMPOSER</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-scanner-NM_v01.html'" style="border-color:#ff9f0a; color:#ff9f0a; font-weight:bold; background:rgba(255,159,10,0.1);">02 SCANNER</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-pipeline-NM_v01.html'" style="border-color:#e07060; color:#e07060;">03 PIPELINE</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-cell_simulator-NM_v01.html'" style="border-color:#34c759; color:#34c759;">04 BIO BRAIN</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-harmonic_solver-NM_v01.html'" style="border-color:#0a84ff; color:#0a84ff;">05 ORBITAL SOLVER</button>
+            <button class="explain-btn" onclick="window.location.href='2026-03-23_-supernova_solver-NM_v01.html'" style="border-color:#d0b060; color:#d0b060;">06 SUPERNOVA 3D</button>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <div class="main-container">
+        <!-- RIGHT PANEL: COL 0 MASTER SCANNER -->
+        <div class="col-0-master" id="col0">
+            <div class="col-0-title">Column 0</div>
+            <div class="col-0-sub">EULER RECONSTRUCTION CLOCK</div>
+            
+            <div class="euler-canvas-wrap">
+                <canvas class="euler-canvas" id="masterEuler"></canvas>
+            </div>
+            
+            <div class="formula-display">
+                PHASE = \(\arg\max( FFT(V) \cdot W^{-1} ) \pmod{2\pi}\)<br>
+                <span style="font-size:10px; color:#aaa; font-weight:normal; margin-top:5px; display:block;">Socratic Truth Decoupling</span>
+            </div>
+
+            <button class="play-btn" id="playBtn">PAUSE SCANNER</button>
+        </div>
+
+        <!-- LEFT PANEL: INVERSE EXTRATION LAYERS -->
+        <div class="left-panel">
+            
+            <!-- SEC 1: INVERSE CASCADE -->
+            <div class="layer-box" id="layer1" style="border-color:#34c759;">
+                <div class="layer-label" style="color:#34c759;">REVERSE PHASE 1: FOURIER EXTRACTION (Inverted Logic)</div>
+                <!-- REVERSED COLUMNS -->
+                <div class="col-box" style="border-color:#34c759; width:130px;"><div class="col-title" style="color:#34c759;">Col 7<br>Raw Input</div><canvas class="c7-input" id="cvs-c7-in"></canvas></div>
+                <div class="col-box" style="width:130px;"><div class="col-title">Col 5<br>FFT Bins</div><div class="c5-fft" id="cvs-c5-fft"></div></div>
+                <div class="col-box" id="c4-1"><div class="col-title">Col 4<br>Weight Extract</div><div class="c4-dice" id="c4-dice-ext"></div></div>
+                <div class="col-box" id="c3-1"><div class="col-title">Col 3<br>ID Decouple</div><div class="c3-matrix">
+                    <div class="c3-row" id="row-0">0</div><div class="c3-row" id="row-1">1</div><div class="c3-row" id="row-2">2</div><div class="c3-row" id="row-3">3</div><div class="c3-row" id="row-4">4</div>
+                </div></div>
+                <div class="col-box" id="c2-1"><div class="col-title">Col 2<br>LUT Pat Match</div><div class="c2-value" id="c2-val">0</div></div>
+                <div class="col-box" id="c1-1"><div class="col-title">Col 1<br>Euler Align</div><div class="c1-value" id="c1-val">0</div></div>
+                
+                <div class="edu-note" style="left:auto; right:20px;">Computing Fast Fourier Transform on signal directly into topological weights.</div>
+            </div>
+
+            <!-- SEC 4: INVERSE DEEP GRAPH -->
+            <div class="layer-box" id="layer4" style="border-color:#0a84ff;">
+                <div class="layer-label" style="color:#0a84ff;">REVERSE PHASE 4: BACK-PROPAGATION TOPOLOGY</div>
+                <div class="nn-canvas-container" id="nnContainer4" style="flex-grow:1; max-width:100%;">
+                    <canvas class="nn-cvs" id="nnCvs4"></canvas>
+                    <div id="nnLabel4" style="position:absolute; top:5px; left:10px; color:#0a84ff; font-weight:bold; font-size:10px;">TOPOLOGICAL INVERSE MATMUL DECODE (L7 ➔ L1)</div>
+                </div>
+                <div class="edu-note" style="left:auto; right:20px;">Graph structure solving the matrix inverses passively via structural determinism.</div>
+            </div>
+
+            <!-- SEC 5: INVERSE TENSOR MATH -->
+            <div class="layer-box" id="layer5" style="border-color:#bf5af2;">
+                <div class="layer-label" style="color:#bf5af2;">REVERSE PHASE 5: TENSOR INVERSION</div>
+                <div style="flex-grow:1; display:flex; align-items:center; justify-content:center; gap:20px; font-weight:bold; font-size:14px; font-family:monospace;">
+                    <div style="text-align:center; color:#bf5af2; padding:20px; border:1px solid #bf5af2; border-radius:8px; background:rgba(191,90,242,0.1); width:90%;">
+                        $$ [ V_{phase} ] = [ W_{tensor}^{-1} ] \times [ FFT(V_{input}) ] $$<br>
+                        <span style="font-size:11px; font-weight:normal; color:#aaa;">Reconstruction Solved in \( \mathcal{O}(1) \)</span>
+                    </div>
+                </div>
+                <div class="edu-note" style="left:auto; right:20px;">Extracting Socratic consensus mathematically natively across the network.</div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- Wire routing -->
+    <canvas id="bgCanvas"></canvas>
+    
+    <!-- We still need MathJax for the scanner formula rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <script>
+        // GLOBALS
+        let timeTick = 0; const loopLength = 20; let flashOpacity = 0;
+        let isPlaying = true; let tickIntervalMS = 200;
+        
+        // CONTROLS
+        document.getElementById('playBtn').addEventListener('click', (e) => {
+            isPlaying = !isPlaying;
+            e.target.innerText = isPlaying ? "PAUSE SCANNER" : "PLAY SCANNER";
+            e.target.className = isPlaying ? "play-btn" : "play-btn paused";
+        });
+
+        const luts = [ [0,0,1,1,2,2,3,3,4,3,2,1,0,4,4,2,2,1,0,0], [1,2,3,1,2], [7,1,7,1,7], [3,3,4,1,2], [2,4,6,4,2], [1,1,1,1,1] ];
+
+        function getDiceDots(val) {
+            if(val===1) return `<div class="dot d-center"></div>`;
+            if(val===2) return `<div class="dot d-tl"></div><div class="dot d-br"></div>`;
+            if(val===3) return `<div class="dot d-tl"></div><div class="dot d-center"></div><div class="dot d-br"></div>`;
+            if(val===4) return `<div class="dot d-tl"></div><div class="dot d-tr"></div><div class="dot d-bl"></div><div class="dot d-br"></div>`;
+            if(val===5) return `<div class="dot d-tl"></div><div class="dot d-tr"></div><div class="dot d-center"></div><div class="dot d-bl"></div><div class="dot d-br"></div>`;
+            if(val===6) return `<div class="dot d-tl"></div><div class="dot d-ml"></div><div class="dot d-bl"></div><div class="dot d-tr"></div><div class="dot d-mr"></div><div class="dot d-br"></div>`;
+            if(val>=7) return `<div class="dot d-tl"></div><div class="dot d-ml"></div><div class="dot d-bl"></div><div class="dot d-tr"></div><div class="dot d-mr"></div><div class="dot d-br"></div><div class="dot d-center"></div>`;
+            return ``;
+        }
+        const diceBox = document.getElementById('c4-dice-ext');
+        for(let i=0; i<5; i++) diceBox.innerHTML += `<div class="c4-dice-item" id="die-${i}"></div>`;
+
+        function initC5(id, count) {
+            const container = document.getElementById(id); const canvases = [];
+            for (let i = 0; i < count; i++) {
+                const cvs = document.createElement('canvas'); cvs.className = 'c5-fft-canvas'; container.appendChild(cvs); canvases.push({ canvas: cvs, ctx: cvs.getContext('2d') });
+            } return canvases;
+        }
+        const c5_fft = initC5('cvs-c5-fft', 5);
+
+        function drawLocalWave(ctxObj, diceConfig, internalTick, color) {
+            const cvs = ctxObj.canvas; cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const ctx = ctxObj.ctx; ctx.clearRect(0,0,cvs.width,cvs.height); ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+            for(let x=0; x<cvs.width; x++) {
+                const t = internalTick + (x * 0.1); const y = cvs.height/2 + Math.sin(diceConfig * t * 0.2) * (cvs.height/2 - 2);
+                if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            } ctx.stroke();
+        }
+
+        const histLen = 100; let c7InputData = Array(histLen).fill(0);
+        function drawCompositeInput(id, dataArr, color) {
+            const cvs = document.getElementById(id); cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height); ctx.beginPath(); ctx.strokeStyle=color; ctx.shadowColor=color; ctx.shadowBlur=8; ctx.lineWidth=2;
+            const dx = cvs.width / histLen;
+            for(let i=0; i<histLen; i++) {
+                const x = i * dx; const v = Math.min(Math.max(dataArr[i], -1), 1); const y = cvs.height/2 - (v * (cvs.height/2 - 10));
+                if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+            } ctx.stroke(); ctx.shadowBlur=0;
+        }
+
+        let globalPulseX = 0; let globalPulseY = 0;
+        function drawMasterScanner(phase) {
+            const cvs = document.getElementById('masterEuler'); cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+            const cx = cvs.width/2, cy = cvs.height/2, rad = cvs.width/2 - 20;
+
+            ctx.beginPath(); ctx.moveTo(20, cy); ctx.lineTo(cvs.width-20, cy); ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx, 20); ctx.lineTo(cx, cvs.height-20); ctx.stroke();
+            ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth=1; ctx.stroke();
+
+            const eRect = cvs.getBoundingClientRect();
+
+            for(let i=0; i<loopLength; i++) {
+                const angle = - (i/loopLength)*Math.PI*2;
+                const x = cx + Math.cos(angle)*rad, y = cy + Math.sin(angle)*rad;
+                ctx.beginPath(); ctx.arc(x,y, 4, 0, Math.PI*2);
+                if(i===phase) { ctx.fillStyle='#ff3b30'; ctx.shadowColor='#ff3b30'; ctx.shadowBlur=20; ctx.fill(); globalPulseX = x + eRect.left; globalPulseY = y + eRect.top; }
+                else { ctx.fillStyle='rgba(255,255,255,0.2)'; ctx.shadowBlur=0; ctx.fill(); }
+            }
+        }
+
+        function getNNCoords(cvsId, nodeConfig) {
+            const cvs = document.getElementById(cvsId); cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+            const w = cvs.width, h = cvs.height; const layers = []; const xStep = w / (nodeConfig.length + 1);
+            nodeConfig.forEach((count, lIdx) => {
+                let nodes = []; const yStep = h / (count + 1);
+                for(let i=0; i<count; i++) nodes.push({ x: w - xStep*(lIdx+1), y: yStep*(i+1) }); layers.push(nodes);
+            });
+            return { cvs, ctx: cvs.getContext('2d'), layers };
+        }
+
+        const bgCanvas = document.getElementById('bgCanvas'); const bgCtx = bgCanvas.getContext('2d');
+        function drawMainWiring() {
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+            if(!isPlaying) return;
+            const target = document.getElementById('c1-1'); if(!target) return;
+            const rect = target.getBoundingClientRect(); const tx = rect.right; const ty = rect.top + rect.height/2;
+            
+            // Wire flows FROM the right panel master TO the left panel columns
+            bgCtx.beginPath(); bgCtx.moveTo(tx, ty);
+            bgCtx.bezierCurveTo(tx+50, ty, globalPulseX-100, globalPulseY, globalPulseX, globalPulseY);
+            bgCtx.strokeStyle = `rgba(255, 59, 48, ${flashOpacity})`; bgCtx.lineWidth=2; bgCtx.stroke();
+        }
+
+        function tick() {
+            if(!isPlaying) return;
+            flashOpacity = 1.0; 
+            
+            // Simulating an incoming generator signal wave over time
+            const truePhase = timeTick % loopLength;
+            const pID = luts[0][truePhase];
+            const incomingDice = luts[pID+1];
+            
+            let comp = 0;
+            for(let i=0; i<5; i++) {
+                comp += Math.sin(incomingDice[i] * timeTick * 0.2);
+                drawLocalWave(c5_fft[i], incomingDice[i], timeTick, '#ff9f0a');
+                const dieEl = document.getElementById('die-'+i);
+                if(dieEl) { dieEl.innerHTML = getDiceDots(incomingDice[i]); dieEl.className = 'c4-dice-item resolved'; }
+            }
+            c7InputData.push(comp/5.0); c7InputData.shift();
+            drawCompositeInput('cvs-c7-in', c7InputData, '#34c759');
+
+            for(let r=0; r<5; r++) document.getElementById('row-'+r).className=(r===pID)?'c3-row active':'c3-row';
+            document.getElementById('c2-val').innerText = "P" + pID;
+            document.getElementById('c1-val').innerText = truePhase;
+
+            drawMasterScanner(truePhase);
+
+            // INVERSE TOPOLOGY DRAWING (Right to Left flow)
+            const nn4 = getNNCoords('nnCvs4', [1, 3, 5, 4, 6, 4, 5]); nn4.ctx.clearRect(0,0,nn4.cvs.width,nn4.cvs.height);
+            for(let l=0; l<nn4.layers.length-1; l++) { for(let i=0; i<nn4.layers[l].length; i++) { for(let j=0; j<nn4.layers[l+1].length; j++) { nn4.ctx.beginPath(); nn4.ctx.moveTo(nn4.layers[l][i].x, nn4.layers[l][i].y); nn4.ctx.lineTo(nn4.layers[l+1][j].x, nn4.layers[l+1][j].y); const wt = Math.sin((timeTick*0.05) + l + i + j); nn4.ctx.strokeStyle = (wt > 0) ? `rgba(10, 132, 255, ${flashOpacity * wt * 1.5})` : 'rgba(255,255,255,0.05)'; nn4.ctx.lineWidth = (wt > 0) ? 2 : 1; nn4.ctx.stroke(); } } }
+            nn4.layers.forEach((lyr, lID) => { lyr.forEach((n) => { nn4.ctx.beginPath(); nn4.ctx.arc(n.x, n.y, 5, 0, Math.PI*2); nn4.ctx.fillStyle='#222'; nn4.ctx.strokeStyle='#555'; nn4.ctx.lineWidth=2; if(lID === 6 - (Math.floor(timeTick) % 7)) { nn4.ctx.fillStyle='#0a84ff'; nn4.ctx.strokeStyle='#0a84ff'; nn4.ctx.shadowColor='#0a84ff'; nn4.ctx.shadowBlur=15; } nn4.ctx.fill(); nn4.ctx.stroke(); nn4.ctx.shadowBlur=0; })});
+            
+            drawMainWiring();
+            timeTick++;
+        }
+
+        function loop() { if(isPlaying) tick(); else animateOpacityOnly(); setTimeout(loop, tickIntervalMS); }
+        function animateOpacityOnly() { if(flashOpacity>0) { flashOpacity-=0.05; drawMainWiring(); } }
+        function animate() { if(isPlaying && flashOpacity>0) flashOpacity-=0.05; requestAnimationFrame(animate); }
+        animate(); loop(); 
+    </script>
+</body>
+</html>
