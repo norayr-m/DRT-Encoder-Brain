@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>composition → decomposition → decompression</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; overflow: hidden; font-family: monospace; cursor: default; }
+canvas { display: block; }
+#hud {
+  position: fixed; bottom: 16px; left: 16px; color: rgba(240,192,64,0.5);
+  font-size: 15px; z-index: 10; line-height: 1.5; pointer-events: none;
+}
+#breadcrumb {
+  position: fixed; top: 16px; left: 16px; color: rgba(240,192,64,0.7);
+  font-size: 18px; z-index: 10; line-height: 1.5;
+  text-shadow: 0 0 8px rgba(240,192,64,0.3);
+}
+#title {
+  position: fixed; top: 16px; right: 16px; color: rgba(240,192,64,0.25);
+  font-size: 14px; z-index: 10; text-align: right; line-height: 1.6;
+  pointer-events: none;
+}
+#footnote {
+  position: fixed; bottom: 16px; right: 16px; color: rgba(240,192,64,0.12);
+  font-size: 12px; z-index: 10; text-align: right; line-height: 1.4;
+  pointer-events: none;
+}
+/* ── gate ── */
+#gate {
+  position: fixed; inset: 0; z-index: 100;
+  pointer-events: auto;
+}
+#gate.gone { display: none; }
+#gate-bg { position: absolute; inset: 0; }
+#gate-ui {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.5s ease;
+}
+#gate-ui.fade { opacity: 0; }
+#gate-prompt {
+  color: rgba(240,192,64,0.35);
+  font-size: 18px; font-family: monospace;
+  letter-spacing: 4px; margin-bottom: 22px;
+  text-transform: lowercase;
+}
+#gate-input {
+  background: transparent; border: none;
+  border-bottom: 1px solid rgba(240,192,64,0.2);
+  color: rgba(240,192,64,0.7);
+  font-family: monospace; font-size: 28px;
+  text-align: center; width: 140px;
+  outline: none; caret-color: rgba(240,192,64,0.5);
+  letter-spacing: 4px; padding: 6px 0;
+}
+#gate-input::placeholder { color: rgba(240,192,64,0.1); letter-spacing: 2px; font-size: 18px; }
+#gate-hint {
+  color: rgba(240,192,64,0.08);
+  font-size: 13px; font-family: monospace;
+  margin-top: 28px; transition: color 0.3s;
+}
+#gate-hint.wrong { color: rgba(240,120,40,0.35); }
+@keyframes gate-shake {
+  0%,100% { transform: translateX(0); }
+  20%,60% { transform: translateX(-6px); }
+  40%,80% { transform: translateX(6px); }
+}
+.shake { animation: gate-shake 0.4s ease; }
+</style>
+</head>
+<body>
+<!-- ── THE GATE — Escher's triangloids part to reveal the game ── -->
+<div id="gate">
+  <canvas id="gate-bg"></canvas>
+  <div id="gate-ui">
+    <div id="gate-prompt">decomposition of THE composition</div>
+    <button id="gate-btn" style="background:transparent;border:1px solid rgba(240,192,64,0.3);color:rgba(240,192,64,0.7);font-family:monospace;font-size:22px;letter-spacing:6px;padding:14px 48px;cursor:pointer;text-transform:uppercase;transition:all 0.3s;outline:none;" onmouseover="this.style.borderColor='rgba(240,192,64,0.6)';this.style.color='rgba(240,192,64,0.9)'" onmouseout="this.style.borderColor='rgba(240,192,64,0.3)';this.style.color='rgba(240,192,64,0.7)'">DECODE</button>
+    <div id="gate-hint" style="margin-top:28px;color:rgba(240,192,64,0.08);font-size:13px;font-family:monospace;">BWV 847 · J.S. Bach</div>
+  </div>
+</div>
+
+<div id="breadcrumb"></div>
+<div id="title">decomposition of THE composition<br>by the decoder of the encoder<br><span style="opacity:0.5">BWV 847 · J.S. Bach</span></div>
+<div id="hud"></div>
+<div id="footnote">all is graph · this is the best possible graph computer<br>proof: left as exercise ;) quack.</div>
+<canvas id="c"></canvas>
+<script>
+// ═══════════════════════════════════════════════════════════
+// RANK SPHERE v5 — composition → decomposition → decompression
+// The fugue IS the graph. Navigate Bach as a tree.
+// Each voice = a branch. Each note = a leaf = a bee musician.
+// Queen's warmth at every rank. Scaffolding mutates into Escher.
+// Temporal graph: nodes glow when their notes fire.
+// ═══════════════════════════════════════════════════════════
+
+// ─── THE GATE — Escher's impossible triangloids ─────────
+// Self-similar Penrose triangles fill the screen.
+// Semi-transparent: the honeycomb bleeds through, sleeping.
+// 847 unlocks. The triangloids part to the sides. The game wakes.
+let gateOpen = false;
+let gateSplitProgress = 0; // 0 = closed, 1 = parted
+
+(function initGate() {
+  const gateEl = document.getElementById('gate');
+  const gateUI = document.getElementById('gate-ui');
+  const gateHint = document.getElementById('gate-hint');
+  const gbg = document.getElementById('gate-bg');
+  const gc = gbg.getContext('2d');
+  let gW, gH;
+
+  function resizeGate() {
+    gW = gbg.width = innerWidth;
+    gH = gbg.height = innerHeight;
+    buildTriangloids();
+  }
+
+  // ── Impossible triangle geometry ──
+  // Each triangloid: position, size, rotation, depth level, drift direction
+  let triangloids = [];
+
+  function buildTriangloids() {
+    triangloids = [];
+    // Dense chainmail weave — mind-bendy Penrose fabric, full coverage
+    // Cap total count for performance (each draws ~12 canvas ops)
+    const MAX_TRIS = 800;
+    function seed(cx, cy, size, rot, depth) {
+      if (size < 12 || depth > 5 || triangloids.length >= MAX_TRIS) return;
+      triangloids.push({
+        x: cx, y: cy, size, rot, depth,
+        drift: cx < gW / 2 ? -1 : cx > gW / 2 ? 1 : (Math.random() < 0.5 ? -1 : 1),
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.2 + Math.random() * 0.6,
+        posX: 0, posY: 0, velX: 0, velY: 0,
+        launched: false
+      });
+      // Chainmail: 3 children at vertices + 3 mid-edge links for weave
+      for (let i = 0; i < 3; i++) {
+        const a = rot - Math.PI / 2 + i * Math.PI * 2 / 3;
+        const childR = size * 0.48;
+        const jitter = (Math.random() - 0.5) * size * 0.15;
+        seed(
+          cx + childR * Math.cos(a) + jitter,
+          cy + childR * Math.sin(a) + jitter,
+          size * 0.45,
+          rot + 0.25 + Math.random() * 0.3,
+          depth + 1
+        );
+        // Mid-edge weave link
+        if (depth < 3) {
+          const a2 = a + Math.PI / 3;
+          seed(
+            cx + childR * 0.55 * Math.cos(a2) + jitter * 0.5,
+            cy + childR * 0.55 * Math.sin(a2) + jitter * 0.5,
+            size * 0.3,
+            rot + 1.0 + Math.random() * 0.4,
+            depth + 2
+          );
+        }
+      }
+    }
+    // Two interlocking hex-packed grids for full screen coverage, no gaps
+    const sp = Math.max(gW, gH) * 0.16;
+    for (let pass = 0; pass < 2; pass++) {
+      const offX = pass * sp * 0.5;
+      const offY = pass * sp * 0.32;
+      for (let x = -sp * 0.3; x < gW + sp; x += sp) {
+        for (let y = -sp * 0.3; y < gH + sp; y += sp * 0.7) {
+          if (triangloids.length >= MAX_TRIS) break;
+          seed(
+            x + offX + (Math.random() - 0.5) * sp * 0.2,
+            y + offY + (Math.random() - 0.5) * sp * 0.2,
+            32 + Math.random() * 22,
+            Math.random() * Math.PI * 2,
+            0
+          );
+        }
+      }
+    }
+  }
+
+  // ── Draw one impossible triangle ──
+  // Three bars with 3D faces, overlapping wrong at each junction
+  function drawPenrose(cx, cy, size, rot, alpha, t) {
+    gc.save();
+    gc.translate(cx, cy);
+    gc.rotate(rot);
+
+    const R = size;
+    const barW = R * 0.28;
+
+    // Three outer vertices
+    const v = [];
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI / 2 + i * Math.PI * 2 / 3;
+      v.push({ x: R * Math.cos(a), y: R * Math.sin(a) });
+    }
+
+    // Draw three bars — each bar has a light face and dark face
+    // The impossible part: draw order creates the paradox
+    for (let i = 0; i < 3; i++) {
+      const a = v[i], b = v[(i + 1) % 3];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = dx / len, ny = dy / len;
+      // Outward perpendicular
+      const px = -ny * barW, py = nx * barW;
+
+      // Light face (outer)
+      gc.beginPath();
+      gc.moveTo(a.x, a.y);
+      gc.lineTo(b.x, b.y);
+      gc.lineTo(b.x + px * 0.7, b.y + py * 0.7);
+      gc.lineTo(a.x + px * 0.7, a.y + py * 0.7);
+      gc.closePath();
+      const lightA = [0.12, 0.08, 0.15][i] * alpha;
+      gc.fillStyle = `rgba(240,192,64,${lightA})`;
+      gc.fill();
+
+      // Dark face (inner edge) — offset inward
+      gc.beginPath();
+      gc.moveTo(a.x + px * 0.7, a.y + py * 0.7);
+      gc.lineTo(b.x + px * 0.7, b.y + py * 0.7);
+      gc.lineTo(b.x + px * 0.35, b.y + py * 0.35);
+      gc.lineTo(a.x + px * 0.35, a.y + py * 0.35);
+      gc.closePath();
+      gc.fillStyle = `rgba(180,140,30,${lightA * 0.6})`;
+      gc.fill();
+
+      // Edge line
+      gc.beginPath();
+      gc.moveTo(a.x, a.y);
+      gc.lineTo(b.x, b.y);
+      gc.strokeStyle = `rgba(240,192,64,${0.06 * alpha})`;
+      gc.lineWidth = 0.5;
+      gc.stroke();
+    }
+
+    // Junction overlaps — the impossible bit
+    // Bar 0's end overlaps bar 2's start (wrong depth order)
+    for (let i = 0; i < 3; i++) {
+      const a = v[i]; // junction vertex
+      const prev = v[(i + 2) % 3];
+      const next = v[(i + 1) % 3];
+      // Small triangle patch at junction that creates impossibility
+      const dx1 = prev.x - a.x, dy1 = prev.y - a.y;
+      const dx2 = next.x - a.x, dy2 = next.y - a.y;
+      const l1 = Math.sqrt(dx1*dx1+dy1*dy1)||1, l2 = Math.sqrt(dx2*dx2+dy2*dy2)||1;
+      gc.beginPath();
+      gc.moveTo(a.x, a.y);
+      gc.lineTo(a.x + dx1/l1*barW*1.2, a.y + dy1/l1*barW*1.2);
+      gc.lineTo(a.x + dx2/l2*barW*1.2, a.y + dy2/l2*barW*1.2);
+      gc.closePath();
+      gc.fillStyle = `rgba(26,26,46,${0.5 * alpha})`;
+      gc.fill();
+      gc.fillStyle = `rgba(240,192,64,${[0.09, 0.06, 0.12][i] * alpha})`;
+      gc.fill();
+    }
+
+    gc.restore();
+  }
+
+  // ── Gate animation loop ──
+  let gt = 0;
+  function drawGate() {
+    // Curtain stays visible but lets all interaction through
+    if (gateOpen && gateSplitProgress > 0.15) {
+      gateEl.style.pointerEvents = 'none';
+    }
+    // Once settled, keep painting but slow (save GPU) — curtain NEVER disappears
+    // It stays bunched at edges as permanent theater fabric
+    gt += 0.008;
+
+    gc.clearRect(0, 0, gW, gH);
+
+    // Background: center clears first as curtain parts, edges stay dark behind curtain
+    if (!gateOpen) {
+      gc.fillStyle = 'rgba(26,26,46,0.88)';
+      gc.fillRect(0, 0, gW, gH);
+    } else {
+      // Gradient: clear center, dark edges where curtain bunches
+      const grad = gc.createLinearGradient(0, 0, gW, 0);
+      const edgeA = Math.max(0.15, 0.88 - gateSplitProgress * 0.4);
+      const centerA = Math.max(0, 0.88 - gateSplitProgress * 2.5);
+      grad.addColorStop(0, `rgba(26,26,46,${edgeA})`);
+      grad.addColorStop(0.25, `rgba(26,26,46,${centerA})`);
+      grad.addColorStop(0.5, `rgba(26,26,46,${centerA * 0.5})`);
+      grad.addColorStop(0.75, `rgba(26,26,46,${centerA})`);
+      grad.addColorStop(1, `rgba(26,26,46,${edgeA})`);
+      gc.fillStyle = grad;
+      gc.fillRect(0, 0, gW, gH);
+    }
+
+    // Advance split
+    if (gateOpen && gateSplitProgress < 1) {
+      gateSplitProgress += 0.012; // ~1.4 seconds to fully part
+    }
+    const split = gateSplitProgress;
+    // Easing: slow start, fast middle, slow end
+    const easedSplit = split < 0.5
+      ? 2 * split * split
+      : 1 - Math.pow(-2 * split + 2, 2) / 2;
+
+    // Draw all triangloids — Nesterov bounce physics
+    // On unlock: rush to sides, overshoot, bounce off walls, pile up THICK
+    // Like theater curtain fabric bunching spectacularly at the edges
+    for (const tri of triangloids) {
+      const pulse = Math.sin(gt * tri.speed + tri.phase);
+      const breathe = 1 + pulse * 0.03;
+      // Continuous spin — each triangloid rotates at its own speed, alternating CW/CCW by depth
+      const spin = gt * (0.4 + tri.speed * 0.6) * (tri.depth % 2 === 0 ? 1 : -1);
+      const rotDrift = spin + pulse * 0.08;
+
+      if (gateOpen) {
+        // Launch: give initial impulse toward assigned side
+        if (!tri.launched) {
+          tri.launched = true;
+          // Bigger triangloids move slower (heavier fabric), small ones whip fast
+          const massScale = 1 + (4 - tri.depth) * 0.3;
+          tri.velX = tri.drift * (8 + Math.random() * 6) / massScale;
+          tri.velY = ((tri.y - gH/2) / gH) * 3;
+        }
+
+        // Nesterov: compute gradient from LOOK-AHEAD position (overshoot then correct)
+        const lookAheadX = (tri.x + tri.posX) + tri.velX * 4;
+        // Gather point: absolute screen position — thick pile at ~85% toward edge
+        const gatherAbsX = tri.drift > 0 ? gW * 0.88 : gW * 0.12;
+        // Spring force: attract toward gather point from look-ahead (Nesterov gradient)
+        const springDx = gatherAbsX - lookAheadX;
+        tri.velX += springDx * 0.006;
+        // Friction — heavy fabric
+        tri.velX *= 0.955;
+        tri.velY *= 0.94;
+        // Integrate
+        tri.posX += tri.velX;
+        tri.posY += tri.velY;
+
+        // ABSOLUTE wall bounce — triangloids CANNOT leave screen
+        const absX = tri.x + tri.posX;
+        const margin = tri.size * 0.3; // allow some overlap at edges for thickness
+        if (absX > gW - margin) {
+          tri.posX = (gW - margin) - tri.x;
+          tri.velX = -Math.abs(tri.velX) * 0.3;
+        }
+        if (absX < margin) {
+          tri.posX = margin - tri.x;
+          tri.velX = Math.abs(tri.velX) * 0.3;
+        }
+        // Vertical walls too
+        const absY = tri.y + tri.posY;
+        if (absY > gH - margin) {
+          tri.posY = (gH - margin) - tri.y;
+          tri.velY = -Math.abs(tri.velY) * 0.2;
+        }
+        if (absY < margin) {
+          tri.posY = margin - tri.y;
+          tri.velY = Math.abs(tri.velY) * 0.2;
+        }
+      }
+
+      const drawX = tri.x + tri.posX;
+      const drawY = tri.y + tri.posY;
+
+      // Alpha: FULL — they STAY as thick curtain fabric. Never fade.
+      const depthFade = 1 - tri.depth * 0.08;
+      const alpha = depthFade;
+
+      if (alpha > 0.005) {
+        // Bunched triangloids compress and rotate extra — crumpled fabric
+        const speed = Math.abs(tri.velX);
+        const crumple = gateOpen ? Math.max(0.7, 1 - speed * 0.02) : 1;
+        const tumble = gateOpen ? speed * 0.05 : 0;
+        drawPenrose(drawX, drawY, tri.size * breathe * crumple, tri.rot + rotDrift + tumble, alpha, gt);
+      }
+    }
+
+    // Small bee emerges in the center gap as curtain parts
+    if (gateOpen && gateSplitProgress > 0.05) {
+      const beeAlpha = Math.min(1, gateSplitProgress * 2);
+      const bx = gW/2 + Math.sin(gt * 3) * 12;
+      const by = gH/2 + Math.cos(gt * 2.3) * 10;
+      gc.beginPath();
+      gc.ellipse(bx, by, 5, 3, Math.sin(gt*3)*0.3, 0, Math.PI*2);
+      gc.fillStyle = `rgba(240,192,64,${0.5 * beeAlpha})`;
+      gc.fill();
+      gc.fillStyle = `rgba(200,220,255,${0.2 * beeAlpha})`;
+      gc.beginPath();
+      gc.ellipse(bx-2, by-4+Math.sin(gt*8)*2, 3, 5, -0.3, 0, Math.PI*2);
+      gc.fill();
+      gc.beginPath();
+      gc.ellipse(bx-2, by+4-Math.sin(gt*8)*2, 3, 5, 0.3, 0, Math.PI*2);
+      gc.fill();
+    }
+
+    requestAnimationFrame(drawGate);
+  }
+
+  resizeGate();
+  addEventListener('resize', resizeGate);
+  drawGate();
+
+  // ── Gate DECODE button logic ──
+  const gateBtn = document.getElementById('gate-btn');
+
+  function openGate() {
+    gateOpen = true;
+    gateUI.classList.add('fade');
+    gateBtn.disabled = true;
+    // Initialize audio NOW while we have a user gesture (Chrome requires it)
+    if (!audioInitialized) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume();
+      audioMaster = audioCtx.createGain();
+      audioMaster.gain.value = 0.35;
+      audioMaster.connect(audioCtx.destination);
+      audioInitialized = true;
+    }
+    // Autoplay: the fugue begins as the curtain parts
+    setTimeout(() => { playBach(); }, 1200);
+  }
+
+  gateBtn.addEventListener('click', openGate);
+
+  document.addEventListener('keydown', function(e) {
+    if (!gateOpen && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      openGate();
+    }
+  }, true);
+})();
+
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const hudEl = document.getElementById('hud');
+const breadEl = document.getElementById('breadcrumb');
+let W, H, t = 0;
+
+// ─── background hex lattice ──────────────────────────────
+const bgHexR = 28;
+const bgHexH = bgHexR * Math.sqrt(3);
+let bgHexes = [];
+
+function initBgHexes() {
+  bgHexes = [];
+  const cols = Math.ceil(W / (bgHexR * 1.5)) + 3;
+  const rows = Math.ceil(H / bgHexH) + 3;
+  for (let r = -1; r < rows; r++) {
+    for (let q = -1; q < cols; q++) {
+      bgHexes.push({
+        x: q * bgHexR * 1.5,
+        y: r * bgHexH + (q % 2 ? bgHexH / 2 : 0),
+        honey: Math.random() < 0.12,
+        pulse: Math.random() * Math.PI * 2,
+        glow: 0
+      });
+    }
+  }
+}
+
+function resize() { W = c.width = innerWidth; H = c.height = innerHeight; initBgHexes(); }
+resize();
+addEventListener('resize', resize);
+
+// ─── flowers ─────────────────────────────────────────────
+let flowers = [];
+let flowerCollected = 0;
+
+// ─── WORKER BEES ─────────────────────────────────────────
+class WorkerBee {
+  constructor() {
+    this.x = W/2 + (Math.random()-0.5)*200;
+    this.y = H/2 + (Math.random()-0.5)*200;
+    this.vx = (Math.random()-0.5)*1.2;
+    this.vy = (Math.random()-0.5)*1.2;
+    this.wingPhase = Math.random()*Math.PI*2;
+    this.size = 3;
+    this.baseSize = 3;
+    this.trail = [];
+    this.target = null;
+    this.carrying = false;
+    this.alpha = 1;
+    this.leafId = null; // which leaf this bee represents
+  }
+  _nesterovLookAhead() { return { x: this.x+this.vx*4, y: this.y+this.vy*4 }; }
+  _findTarget() {
+    if (!flowers.length) { this.target = null; return; }
+    const la = this._nesterovLookAhead();
+    let best = null, bestD = Infinity;
+    for (const f of flowers) {
+      if (f.claimed && f.claimed !== this) continue;
+      const dx = f.x-la.x, dy = f.y-la.y, d = dx*dx+dy*dy;
+      if (d < bestD) { bestD = d; best = f; }
+    }
+    if (best) {
+      if (this.target && this.target.claimed === this) this.target.claimed = null;
+      best.claimed = this; this.target = best;
+    }
+  }
+  update(t, ax, ay) {
+    if (this.alpha < 0.01) return;
+    if (!this.target || Math.random()<0.02) this._findTarget();
+    if (this.target) {
+      const dx=this.target.x-this.x, dy=this.target.y-this.y;
+      const d = Math.sqrt(dx*dx+dy*dy)||1;
+      const la = this._nesterovLookAhead();
+      const ldx=this.target.x-la.x, ldy=this.target.y-la.y;
+      const ld=Math.sqrt(ldx*ldx+ldy*ldy)||1;
+      this.vx += ldx/ld*0.15; this.vy += ldy/ld*0.15;
+      if (d < 15) {
+        this.target.collected = true; this.target.claimed = null;
+        flowers = flowers.filter(f=>!f.collected);
+        flowerCollected++; this.target = null;
+        this.carrying = true;
+        setTimeout(()=>{ this.carrying=false; }, 500);
+      }
+    }
+    if (ax !== null) {
+      const dx=ax-this.x, dy=ay-this.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+      if (d<300&&d>40) { this.vx+=dx/d*0.02; this.vy+=dy/d*0.02; }
+    }
+    this.vx += Math.sin(t*0.0008+this.wingPhase)*0.008;
+    this.vy += Math.cos(t*0.0011+this.wingPhase)*0.008;
+    this.vx *= 0.97; this.vy *= 0.97;
+    const sp = Math.sqrt(this.vx*this.vx+this.vy*this.vy);
+    if (sp > 3.5) { this.vx*=3.5/sp; this.vy*=3.5/sp; }
+    this.x += this.vx; this.y += this.vy;
+    if (this.x<20) this.vx+=0.3; if (this.x>W-20) this.vx-=0.3;
+    if (this.y<20) this.vy+=0.3; if (this.y>H-20) this.vy-=0.3;
+    this.wingPhase += 0.35;
+    this.trail.push({x:this.x, y:this.y});
+    if (this.trail.length>10) this.trail.shift();
+    for (const h of bgHexes) {
+      const dx=h.x-this.x, dy=h.y-this.y;
+      if (dx*dx+dy*dy<1200) h.glow=Math.min(1,h.glow+0.03);
+    }
+  }
+  draw() {
+    if (this.trail.length>2) {
+      for (let i=1;i<this.trail.length;i++) {
+        ctx.beginPath(); ctx.arc(this.trail[i].x,this.trail[i].y,0.8,0,Math.PI*2);
+        ctx.fillStyle=`rgba(240,192,64,${i/this.trail.length*0.2})`; ctx.fill();
+      }
+    }
+    const s=this.size;
+    ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(Math.atan2(this.vy,this.vx));
+    const wf=Math.sin(this.wingPhase)*0.5;
+    ctx.fillStyle='rgba(200,220,255,0.25)';
+    ctx.beginPath(); ctx.ellipse(-1,-s*(0.5+wf),s*0.45,s*0.6,-0.3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-1,s*(0.5+wf),s*0.45,s*0.6,0.3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=this.carrying?'rgba(255,230,80,0.9)':'rgba(240,192,64,0.65)';
+    ctx.beginPath(); ctx.ellipse(0,0,s,s*0.5,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(30,20,0,0.35)';
+    ctx.fillRect(-1,-s*0.5,1,s); ctx.fillRect(s*0.3,-s*0.5,1,s);
+    if (this.carrying) {
+      const g=ctx.createRadialGradient(0,0,0,0,0,s*2.5);
+      g.addColorStop(0,'rgba(240,192,64,0.12)');
+      g.addColorStop(1,'rgba(240,192,64,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,s*2.5,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// ─── FREQUENCIES — C minor chromatic palette ─────────────
+const FREQ = {
+  'G2':98.00,'Ab2':103.83,'A2':110.00,'Bb2':116.54,'B2':123.47,
+  'C3':130.81,'D3':146.83,'Eb3':155.56,'E3':164.81,'F3':174.61,
+  'G3':196.00,'Ab3':207.65,'A3':220.00,'Bb3':233.08,'B3':246.94,
+  'C4':261.63,'D4':293.66,'Eb4':311.13,'E4':329.63,'F4':349.23,
+  'G4':392.00,'Ab4':415.30,'A4':440.00,'Bb4':466.16,'B4':493.88,
+  'C5':523.25,'D5':587.33,'Eb5':622.25
+};
+
+// ─── BWV 847 — Fugue No.2 in C minor, WTC Book I ────────
+// Johann Sebastian Bach, c. 1722
+// composition → decomposition by compressor → decompressor
+//
+// The fugue IS the graph. Voices are branches. Notes are leaves.
+// Each leaf = one bee musician. The swarm plays the temporal graph.
+
+const BWV847 = {
+  title: 'BWV 847',
+  subtitle: 'Fugue No.2 in C minor',
+  composer: 'J.S. Bach',
+  beatMs: 380,
+  voices: [
+    {
+      name: 'soprano', hue: 45,
+      phrases: [
+        { name: 'subject', notes: [
+          {n:'C4',b:1},{n:'D4',b:0.5},{n:'Eb4',b:0.75},{n:'G4',b:1},
+          {n:'Ab4',b:0.75},{n:'F4',b:0.5},{n:'D4',b:0.5},{n:'C4',b:1}
+        ]},
+        { name: 'counter', notes: [
+          {n:'Eb4',b:0.5},{n:'F4',b:0.5},{n:'G4',b:0.5},{n:'Ab4',b:0.5},
+          {n:'G4',b:0.5},{n:'F4',b:0.5},{n:'Eb4',b:0.5},{n:'D4',b:0.5}
+        ]},
+        { name: 'stretto', notes: [
+          {n:'C5',b:0.75},{n:'D5',b:0.5},{n:'Eb5',b:0.5},{n:'D5',b:0.5},{n:'C5',b:1.75}
+        ]}
+      ]
+    },
+    {
+      name: 'alto', hue: 160,
+      phrases: [
+        { name: 'answer', notes: [
+          {n:'G3',b:1},{n:'A3',b:0.5},{n:'Bb3',b:0.75},{n:'D4',b:1},
+          {n:'Eb4',b:0.75},{n:'C4',b:0.5},{n:'A3',b:0.5},{n:'G3',b:1}
+        ]},
+        { name: 'counter', notes: [
+          {n:'Bb3',b:0.5},{n:'C4',b:0.5},{n:'D4',b:0.5},{n:'Eb4',b:0.5},
+          {n:'D4',b:0.5},{n:'C4',b:0.5},{n:'Bb3',b:0.5},{n:'Ab3',b:0.5}
+        ]},
+        { name: 'stretto', notes: [
+          {n:'G4',b:0.75},{n:'A4',b:0.5},{n:'Bb4',b:0.5},{n:'A4',b:0.5},{n:'G4',b:1.75}
+        ]}
+      ]
+    },
+    {
+      name: 'tenor', hue: 280,
+      phrases: [
+        { name: 'subject', notes: [
+          {n:'C3',b:1},{n:'D3',b:0.5},{n:'Eb3',b:0.75},{n:'G3',b:1},
+          {n:'Ab3',b:0.75},{n:'F3',b:0.5},{n:'D3',b:0.5},{n:'C3',b:1}
+        ]},
+        { name: 'stretto', notes: [
+          {n:'C4',b:0.75},{n:'D4',b:0.5},{n:'Eb4',b:0.5},{n:'D4',b:0.5},{n:'C4',b:1.75}
+        ]}
+      ]
+    },
+    {
+      name: 'bass', hue: 30,
+      phrases: [
+        { name: 'answer', notes: [
+          {n:'G2',b:1},{n:'A2',b:0.5},{n:'Bb2',b:0.75},{n:'D3',b:1},
+          {n:'Eb3',b:0.75},{n:'C3',b:0.5},{n:'A2',b:0.5},{n:'G2',b:1}
+        ]},
+        { name: 'coda', notes: [
+          {n:'C3',b:0.75},{n:'Eb3',b:0.75},{n:'G3',b:0.75},{n:'C3',b:2.5}
+        ]}
+      ]
+    }
+  ],
+  timeline: [
+    // ── Exposition: voices enter one by one ──
+    { voice: 0, phrase: 0, beat: 0 },        // soprano subject
+    { voice: 1, phrase: 0, beat: 6 },        // alto answer
+    { voice: 0, phrase: 1, beat: 6 },        // soprano counter
+    { voice: 2, phrase: 0, beat: 12 },       // tenor subject
+    { voice: 1, phrase: 1, beat: 12 },       // alto counter
+    { voice: 3, phrase: 0, beat: 18 },       // bass answer
+    // ── Stretto: voices pile up, entries overlap ──
+    { voice: 0, phrase: 2, beat: 26 },       // soprano stretto
+    { voice: 1, phrase: 2, beat: 28 },       // alto stretto
+    { voice: 2, phrase: 1, beat: 30 },       // tenor stretto
+    { voice: 3, phrase: 1, beat: 32 },       // bass coda
+  ],
+  // Final chord — all voices resolve to C minor
+  finalChord: { beat: 37, notes: [
+    {n:'C5',v:0}, {n:'Eb4',v:1}, {n:'G3',v:2}, {n:'C3',v:3}
+  ]}
+};
+
+// ─── fugue_to_graph: composition → decomposition ─────────
+// The compressor. Takes a fugue. Returns a graph.
+// Voices → branches. Phrases → sub-branches. Notes → leaves.
+// Each leaf IS a bee musician.
+
+let allLeaves = [];
+let leafMap = {}; // id → node
+
+function fugue_to_graph(fugue) {
+  allLeaves = [];
+  leafMap = {};
+
+  const root = {
+    id: fugue.title, label: fugue.title, rank: 0,
+    color: { h: 45, s: 85, l: 55 },
+    data: { type: 'fugue', subtitle: fugue.subtitle, composer: fugue.composer },
+    children: [], lastFired: 0
+  };
+
+  fugue.voices.forEach((voice, vi) => {
+    const voiceNode = {
+      id: `v${vi}`, label: voice.name, rank: 1,
+      color: { h: voice.hue, s: 65, l: 52 },
+      data: { type: 'voice', voiceIdx: vi },
+      children: [], lastFired: 0
+    };
+
+    voice.phrases.forEach((phrase, pi) => {
+      const phraseNode = {
+        id: `v${vi}p${pi}`, label: phrase.name, rank: 2,
+        color: { h: voice.hue + pi * 25, s: 50, l: 48 },
+        data: { type: 'phrase', voiceIdx: vi, phraseIdx: pi },
+        children: [], lastFired: 0
+      };
+
+      phrase.notes.forEach((note, ni) => {
+        const leaf = {
+          id: `v${vi}p${pi}n${ni}`, label: note.n, rank: 3,
+          color: { h: voice.hue + ni * 12, s: 35, l: 42 },
+          data: {
+            type: 'note', note: note.n, freq: FREQ[note.n], beats: note.b,
+            voiceIdx: vi, phraseIdx: pi, noteIdx: ni
+          },
+          children: [], lastFired: 0
+        };
+        phraseNode.children.push(leaf);
+        allLeaves.push(leaf);
+        leafMap[leaf.id] = leaf;
+      });
+
+      voiceNode.children.push(phraseNode);
+    });
+
+    root.children.push(voiceNode);
+  });
+
+  return root;
+}
+
+// ─── Graph utilities ─────────────────────────────────────
+function countLeaves(node) {
+  if (!node.children || node.children.length === 0) return 1;
+  return node.children.reduce((s, c) => s + countLeaves(c), 0);
+}
+
+function collectLeafIds(node) {
+  const ids = new Set();
+  if (!node.children || node.children.length === 0) {
+    ids.add(node.id);
+  } else {
+    for (const child of node.children) {
+      for (const id of collectLeafIds(child)) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+// Active subtree tracking — updated on navigation
+let activeLeafIds = new Set();
+function updateActiveLeafs() {
+  activeLeafIds = collectLeafIds(currentNode());
+}
+
+// ─── Build the graph ─────────────────────────────────────
+const rootGraph = fugue_to_graph(BWV847);
+const bgBees = allLeaves.map((leaf, i) => {
+  const bee = new WorkerBee();
+  bee.leafId = leaf.id;
+  // Spread initial positions by voice
+  const vi = leaf.data.voiceIdx;
+  bee.x = W * 0.3 + vi * W * 0.15 + (Math.random()-0.5)*60;
+  bee.y = H * 0.3 + Math.random() * H * 0.4;
+  return bee;
+});
+
+// ─── NAV STATE ───────────────────────────────────────────
+let navStack = [rootGraph];
+let selectedChild = null;
+let animProgress = 1;
+
+function currentNode() { return navStack[navStack.length - 1]; }
+
+// Initialize active set
+updateActiveLeafs();
+
+// ─── HEX UTILITIES ──────────────────────────────────────
+function drawHex(x, y, r, fill, stroke, alpha) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 3 * i - Math.PI / 6;
+    const px = x + r * Math.cos(a), py = y + r * Math.sin(a);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  if (fill) { ctx.globalAlpha = alpha || 1; ctx.fillStyle = fill; ctx.fill(); ctx.globalAlpha = 1; }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+}
+
+function hexPath(x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 3 * i - Math.PI / 6;
+    i === 0 ? ctx.moveTo(x + r * Math.cos(a), y + r * Math.sin(a))
+            : ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a));
+  }
+  ctx.closePath();
+}
+
+function pointInHex(px, py, cx, cy, R) {
+  const dx = Math.abs(px - cx), dy = Math.abs(py - cy);
+  const s = R * 0.866;
+  if (dx > R || dy > s) return false;
+  return s * R - s * dx - R * 0.5 * dy >= 0;
+}
+
+// ─── LAYOUT CHILDREN INSIDE PARENT HEX ──────────────────
+function layoutInside(n, cx, cy, R) {
+  if (n === 0) return [];
+  const p = R * 0.82;
+  if (n === 1) return [{ x: cx, y: cy, r: p * 0.6 }];
+  if (n === 2) {
+    const cr = p * 0.42, off = p * 0.4;
+    return [{ x: cx - off, y: cy, r: cr }, { x: cx + off, y: cy, r: cr }];
+  }
+  if (n === 3) {
+    const cr = p * 0.36, off = p * 0.38;
+    return [
+      { x: cx, y: cy - off * 0.7, r: cr },
+      { x: cx - off * 0.8, y: cy + off * 0.5, r: cr },
+      { x: cx + off * 0.8, y: cy + off * 0.5, r: cr }
+    ];
+  }
+  if (n === 4) {
+    const cr = p * 0.33, off = p * 0.42;
+    return [
+      { x: cx, y: cy - off, r: cr },
+      { x: cx + off * 1.05, y: cy, r: cr },
+      { x: cx, y: cy + off, r: cr },
+      { x: cx - off * 1.05, y: cy, r: cr }
+    ];
+  }
+  if (n <= 6) {
+    const cr = p * 0.27, orb = p * 0.46;
+    return Array.from({ length: n }, (_, i) => {
+      const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+      return { x: cx + orb * Math.cos(a), y: cy + orb * Math.sin(a), r: cr };
+    });
+  }
+  if (n <= 8) {
+    const cr = p * 0.22, orb = p * 0.5;
+    return Array.from({ length: n }, (_, i) => {
+      const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+      return { x: cx + orb * Math.cos(a), y: cy + orb * Math.sin(a), r: cr };
+    });
+  }
+  // 9+: center + ring
+  const cr = p * 0.18, orb = p * 0.52;
+  const res = [{ x: cx, y: cy, r: cr }];
+  for (let i = 0; i < n - 1; i++) {
+    const a = -Math.PI / 2 + (i / (n - 1)) * Math.PI * 2;
+    res.push({ x: cx + orb * Math.cos(a), y: cy + orb * Math.sin(a), r: cr });
+  }
+  return res;
+}
+
+// ─── DRAW BACKGROUND — scaffolding mutates into Escher ───
+function drawBackground() {
+  // Darker base — lets fiber-optic light pop
+  ctx.fillStyle = 'rgba(16,16,32,0.18)';
+  ctx.fillRect(0, 0, W, H);
+
+  const depth = navStack.length - 1;
+  const escher = Math.min(1, depth * 0.28); // 0 at root, grows with depth
+  // Off-center drift increases with depth
+  const driftX = Math.sin(t * 0.0003 + depth) * depth * 8;
+  const driftY = Math.cos(t * 0.0002 + depth * 0.7) * depth * 6;
+
+  for (const h of bgHexes) {
+    h.glow *= 0.97;
+    const base = h.honey ? 0.05 : 0.015;
+    const alpha = base + h.glow * 0.25;
+    const fill = h.honey ? `rgba(220,170,30,${alpha})` : `rgba(35,35,65,${alpha})`;
+    const stroke = `rgba(40,40,65,${0.05 + Math.sin(t * 0.001 + h.pulse) * 0.02})`;
+
+    if (escher > 0.01) {
+      // Escher: hexes rotate and distort based on position + depth
+      const rot = escher * Math.sin(h.x * 0.008 + h.y * 0.011 + t * 0.0004) * 0.6;
+      const scY = 1 - escher * Math.abs(Math.sin(h.x * 0.015 + h.y * 0.009)) * 0.35;
+      ctx.save();
+      ctx.translate(h.x + driftX, h.y + driftY);
+      ctx.rotate(rot);
+      ctx.scale(1, scY);
+      drawHex(0, 0, bgHexR - 2, fill, stroke);
+      ctx.restore();
+    } else {
+      drawHex(h.x, h.y, bgHexR - 2, fill, stroke);
+    }
+  }
+
+  // Flowers
+  for (const f of flowers) {
+    const pulse = Math.sin(t * 0.004 + f.phase) * 3;
+    ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(t * 0.001 + f.phase);
+    for (let p = 0; p < 5; p++) {
+      const pa = (p / 5) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(pa) * (5 + pulse), Math.sin(pa) * (5 + pulse), 4, 2.5, pa, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${f.hue},70%,65%,0.6)`;
+      ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${f.hue + 30},80%,75%,0.8)`; ctx.fill();
+    ctx.restore();
+  }
+
+  // Bees — each bee IS a leaf musician
+  // Active bees = leaves in current subtree
+  const activeBeeCount = activeLeafIds.size;
+  const dynamicSize = 2 + 4 / Math.sqrt(Math.max(1, activeBeeCount));
+
+  for (let i = 0; i < bgBees.length; i++) {
+    const bee = bgBees[i];
+    const isActive = activeLeafIds.has(bee.leafId);
+    const targetAlpha = isActive ? 1 : 0;
+    bee.alpha += (targetAlpha - bee.alpha) * 0.06;
+    bee.size += (dynamicSize - bee.size) * 0.05;
+
+    if (bee.alpha > 0.01) {
+      bee.update(t, mouseX, mouseY);
+      ctx.globalAlpha = bee.alpha;
+      bee.draw();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// ─── THE QUEEN — her warmth felt at every rank ───────────
+// At rank 0: full queen visible. At deeper ranks: residual golden warmth.
+// Her gaze IS the searchlight at every level.
+
+function queenGazeSelect(cx, cy, gazeX, gazeY) {
+  if (!gazeX) return -1;
+  let best = -1, bestDist = Infinity;
+  for (const cp of childPositions) {
+    const dx = cp.x - cx, dy = cp.y - cy;
+    const gx = gazeX - cx, gy = gazeY - cy;
+    const gLen = Math.sqrt(gx * gx + gy * gy) || 1;
+    const gnx = gx / gLen, gny = gy / gLen;
+    const proj = dx * gnx + dy * gny;
+    const perpX = dx - proj * gnx, perpY = dy - proj * gny;
+    const perp = Math.sqrt(perpX * perpX + perpY * perpY);
+    if (proj > 0 && perp < cp.radius * 0.85 && proj < bestDist) {
+      bestDist = proj; best = cp.index;
+    }
+  }
+  return best;
+}
+
+function drawQueen(cx, cy, radius, gazeX, gazeY) {
+  const depth = navStack.length - 1;
+  const warmthAlpha = Math.max(0.03, 0.20 - depth * 0.04);
+
+  // ── Throne glow — warm radiance. Present at EVERY level. ──
+  const glowR = depth === 0 ? radius * 0.18 : radius * 0.12;
+  const throneGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR * 3);
+  throneGrad.addColorStop(0, `rgba(240, 200, 80, ${warmthAlpha})`);
+  throneGrad.addColorStop(0.5, `rgba(240, 180, 60, ${warmthAlpha * 0.4})`);
+  throneGrad.addColorStop(1, 'rgba(240, 160, 40, 0)');
+  ctx.fillStyle = throneGrad;
+  ctx.beginPath(); ctx.arc(cx, cy, glowR * 3, 0, Math.PI * 2); ctx.fill();
+
+  // ── Residual gaze at deeper ranks — searchlight ghost ──
+  if (depth > 0 && selectedChild !== null && childPositions[selectedChild]) {
+    const cp = childPositions[selectedChild];
+    const dx = cp.x - cx, dy = cp.y - cy;
+    const grad = ctx.createLinearGradient(cx, cy, cp.x, cp.y);
+    grad.addColorStop(0, `rgba(240, 200, 80, ${warmthAlpha * 0.6})`);
+    grad.addColorStop(0.6, `rgba(240, 200, 80, ${warmthAlpha * 0.2})`);
+    grad.addColorStop(1, 'rgba(240, 200, 80, 0)');
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cp.x, cp.y);
+    ctx.strokeStyle = grad; ctx.lineWidth = 1.5; ctx.stroke();
+    // Faint cone
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const perpX = -dy / len * 8, perpY = dx / len * 8;
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.lineTo(cp.x + perpX, cp.y + perpY);
+    ctx.lineTo(cp.x - perpX, cp.y - perpY);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(240, 200, 80, ${warmthAlpha * 0.08})`;
+    ctx.fill();
+  }
+
+  // ── Full queen only at rank 0 ──
+  if (depth > 0) return;
+
+  const qr = radius * 0.09;
+  const gdx = (gazeX || W/2) - cx;
+  const gdy = (gazeY || H/2) - cy;
+  const gd = Math.sqrt(gdx * gdx + gdy * gdy) || 1;
+  const gazeNx = gdx / gd, gazeNy = gdy / gd;
+  const gazeStrength = Math.min(1, gd / (radius * 0.8));
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Crown
+  const crownH = qr * 1.6;
+  ctx.fillStyle = 'rgba(240, 200, 80, 0.6)';
+  for (let i = -1; i <= 1; i++) {
+    const cx2 = i * qr * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx2 - qr * 0.18, -qr * 0.5);
+    ctx.lineTo(cx2, -crownH);
+    ctx.lineTo(cx2 + qr * 0.18, -qr * 0.5);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(240, 200, 80, 0.5)';
+  ctx.fillRect(-qr * 0.7, -qr * 0.6, qr * 1.4, qr * 0.25);
+
+  // Body hex
+  hexPath(0, 0, qr);
+  const bodyGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, qr);
+  bodyGrad.addColorStop(0, 'rgba(255, 220, 100, 0.7)');
+  bodyGrad.addColorStop(0.7, 'rgba(240, 190, 60, 0.5)');
+  bodyGrad.addColorStop(1, 'rgba(220, 170, 40, 0.3)');
+  ctx.fillStyle = bodyGrad; ctx.fill();
+  ctx.strokeStyle = 'rgba(240, 200, 80, 0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Eyes
+  const eyeSpacing = qr * 0.28, eyeY = -qr * 0.08, eyeR = qr * 0.14;
+  const pupilR = eyeR * 0.55, pupilShift = eyeR * 0.35 * gazeStrength;
+  for (const side of [-1, 1]) {
+    const ex = side * eyeSpacing;
+    ctx.beginPath(); ctx.arc(ex, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 250, 230, 0.85)'; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ex + gazeNx * pupilShift, eyeY + gazeNy * pupilShift, pupilR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(60, 30, 0, 0.9)'; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ex + gazeNx * pupilShift * 0.5 + pupilR * 0.3, eyeY + gazeNy * pupilShift * 0.5 - pupilR * 0.3, pupilR * 0.25, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fill();
+  }
+
+  // Smile
+  ctx.beginPath(); ctx.arc(0, qr * 0.15, qr * 0.2, 0.15, Math.PI - 0.15);
+  ctx.strokeStyle = 'rgba(120, 80, 20, 0.45)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // Wings
+  const wingPhase = Math.sin(t * 0.003) * 0.15;
+  ctx.fillStyle = 'rgba(255, 230, 150, 0.15)';
+  ctx.beginPath(); ctx.ellipse(-qr * 0.9, -qr * 0.1, qr * 0.7, qr * 0.35, -0.3 + wingPhase, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(qr * 0.9, -qr * 0.1, qr * 0.7, qr * 0.35, 0.3 - wingPhase, 0, Math.PI * 2); ctx.fill();
+
+  // Searchlight ray
+  if (gazeStrength > 0.1) {
+    let targetX = gazeNx * radius * 0.7 * gazeStrength;
+    let targetY = gazeNy * radius * 0.7 * gazeStrength;
+    let rayAlpha = 0.06;
+
+    if (selectedChild !== null && childPositions[selectedChild]) {
+      const cp = childPositions[selectedChild];
+      targetX = cp.x - cx; targetY = cp.y - cy;
+      rayAlpha = 0.14;
+    }
+
+    const grad = ctx.createLinearGradient(0, 0, targetX, targetY);
+    grad.addColorStop(0, `rgba(240, 200, 80, ${rayAlpha})`);
+    grad.addColorStop(0.7, `rgba(240, 200, 80, ${rayAlpha * 0.6})`);
+    grad.addColorStop(1, 'rgba(240, 200, 80, 0)');
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(targetX, targetY);
+    ctx.strokeStyle = grad; ctx.lineWidth = selectedChild !== null ? 3 : 2; ctx.stroke();
+
+    if (selectedChild !== null) {
+      const len = Math.sqrt(targetX * targetX + targetY * targetY) || 1;
+      const perpX = -targetY / len * 12, perpY = targetX / len * 12;
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.lineTo(targetX + perpX, targetY + perpY);
+      ctx.lineTo(targetX - perpX, targetY - perpY);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(240, 200, 80, 0.03)'; ctx.fill();
+    }
+  }
+
+  ctx.restore();
+
+  // Y₀₀ label
+  ctx.font = '13px monospace';
+  ctx.fillStyle = 'rgba(240, 200, 80, 0.35)';
+  ctx.textAlign = 'center';
+  ctx.fillText('Y₀₀', cx, cy + qr * 1.4);
+}
+
+// ─── DRAW NESTED VIEW ────────────────────────────────────
+let childPositions = [];
+
+function drawNodeHex(node, cx, cy, radius, depth) {
+  const col = node.color;
+  const hasKids = node.children && node.children.length > 0;
+
+  // Temporal glow: fiber-optic light strands — bright burst, slow linger
+  const now = performance.now();
+  const rawFired = node.lastFired ? (now - node.lastFired) : 99999;
+  // Fast attack (0-100ms bright), slow exponential decay (lingers ~2s)
+  const fired = rawFired < 100 ? 1.0 : Math.max(0, Math.exp(-rawFired / 1200));
+
+  // Glow behind — fiber-optic bloom when fired
+  if (depth === 0) {
+    const grd = ctx.createRadialGradient(cx, cy, radius * 0.1, cx, cy, radius * 1.6);
+    const glowL = col.l + 15 + fired * 35;
+    grd.addColorStop(0, `hsla(${col.h},${col.s}%,${Math.min(95, glowL)}%,${0.08 + fired * 0.35})`);
+    grd.addColorStop(0.3, `hsla(${col.h},${col.s}%,${col.l + fired * 20}%,${0.03 + fired * 0.12})`);
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(cx, cy, radius * 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Honeycomb fill
+  if (depth < 2) {
+    const cellR = Math.max(4, radius * (depth === 0 ? 0.055 : 0.13));
+    const cellH = cellR * 1.732;
+    const range = Math.ceil(radius / (cellR * 1.5)) + 1;
+
+    for (let q = -range; q <= range; q++) {
+      for (let r = -range; r <= range; r++) {
+        const sx = cx + q * cellR * 1.5;
+        const sy = cy + r * cellH + (q % 2 ? cellH / 2 : 0);
+        const dx = sx - cx, dy = sy - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > radius * 0.92) continue;
+
+        const warmth = 1 - dist / (radius * 0.92);
+        const pulse = Math.sin(t * 0.002 + q * 0.3 + r * 0.5) * 0.05;
+        const fireBoost = fired * warmth * 0.3;
+        const a = (depth === 0 ? 0.03 : 0.06) + warmth * (depth === 0 ? 0.12 : 0.22) + pulse + fireBoost;
+
+        drawHex(sx, sy, cellR - 0.5,
+          `hsla(${col.h},${col.s}%,${col.l + warmth * 12 + fired * 15}%,${a})`,
+          `hsla(${col.h},${col.s - 20}%,${col.l + 8}%,${0.02 + warmth * 0.05})`
+        );
+      }
+    }
+  } else {
+    hexPath(cx, cy, radius * 0.92);
+    // Fiber-optic: leaves blaze bright white-hot when fired
+    const leafL = Math.min(97, col.l + fired * 45);
+    const leafS = Math.max(40, col.s - fired * 30); // desaturate toward white at peak
+    ctx.fillStyle = `hsla(${col.h},${leafS}%,${leafL}%,${0.15 + fired * 0.65})`;
+    ctx.fill();
+  }
+
+  // Hex border
+  hexPath(cx, cy, radius);
+  const borderAlpha = depth === 0 ? 0.5 : depth === 1 ? 0.35 : 0.2;
+  ctx.strokeStyle = `hsla(${col.h},${col.s}%,${col.l + 20 + fired * 15}%,${borderAlpha + fired * 0.3})`;
+  ctx.lineWidth = depth === 0 ? 2 : 1;
+  ctx.stroke();
+
+  // Children INSIDE
+  if (hasKids && depth < 3) {
+    const positions = layoutInside(node.children.length, cx, cy, radius);
+
+    for (let i = 0; i < node.children.length; i++) {
+      const child = node.children[i];
+      const pos = positions[i];
+      const isSelected = depth === 0 && selectedChild === i;
+      // Same fiber-optic decay: fast attack, slow exponential linger
+      const childRaw = child.lastFired ? (now - child.lastFired) : 99999;
+      const childFired = childRaw < 100 ? 1.0 : Math.max(0, Math.exp(-childRaw / 1200));
+
+      // Dark separation mask — deep dark for fiber contrast
+      hexPath(pos.x, pos.y, pos.r);
+      ctx.fillStyle = `rgba(12,12,28,${depth === 0 ? 0.6 : 0.45})`;
+      ctx.fill();
+
+      // Selection glow
+      if (isSelected) {
+        const sg = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, pos.r * 1.3);
+        sg.addColorStop(0, `hsla(${child.color.h},${child.color.s}%,${child.color.l + 20}%,0.18)`);
+        sg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = sg;
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, pos.r * 1.3, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Fiber-optic light strand — bright burst from bee-voice, lingers
+      if (childFired > 0.02) {
+        // Bright core bloom
+        const fg = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, pos.r * 1.4);
+        const coreL = Math.min(97, 70 + childFired * 30);
+        fg.addColorStop(0, `hsla(45,95%,${coreL}%,${childFired * 0.7})`);
+        fg.addColorStop(0.3, `hsla(${child.color.h},90%,75%,${childFired * 0.35})`);
+        fg.addColorStop(0.7, `hsla(${child.color.h},80%,60%,${childFired * 0.08})`);
+        fg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = fg;
+        ctx.beginPath(); ctx.arc(pos.x, pos.y, pos.r * 1.4, 0, Math.PI * 2); ctx.fill();
+
+        // Fiber strand: light ray from child toward parent center (aggregation)
+        if (childFired > 0.08) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter'; // additive blend — light accumulates
+          const strandAlpha = childFired * 0.5;
+          const grad = ctx.createLinearGradient(pos.x, pos.y, cx, cy);
+          grad.addColorStop(0, `hsla(${child.color.h},95%,80%,${strandAlpha})`);
+          grad.addColorStop(0.4, `hsla(45,90%,70%,${strandAlpha * 0.4})`);
+          grad.addColorStop(1, `hsla(45,90%,70%,0)`);
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 1.5 + childFired * 3;
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+          // Slight curve for organic feel
+          const midX = (pos.x + cx) / 2 + (pos.y - cy) * 0.08;
+          const midY = (pos.y + cy) / 2 - (pos.x - cx) * 0.08;
+          ctx.quadraticCurveTo(midX, midY, cx, cy);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // Recurse
+      drawNodeHex(child, pos.x, pos.y, pos.r, depth + 1);
+
+      // Labels
+      const childHasKids = child.children && child.children.length > 0;
+      if (pos.r > 14) {
+        const fs = Math.max(10, Math.min(20, pos.r * 0.28));
+        const labelBright = isSelected ? 0.9 : (childFired > 0.1 ? 0.7 : 0.55);
+        ctx.font = `${isSelected ? fs + 1 : fs}px monospace`;
+        ctx.fillStyle = `hsla(${child.color.h},${child.color.s}%,85%,${labelBright})`;
+        ctx.textAlign = 'center';
+        const labelY = childHasKids ? pos.y + pos.r * 0.78 : pos.y + fs * 0.35;
+        ctx.fillText(child.label, pos.x, labelY);
+
+        if (childHasKids && pos.r > 28) {
+          ctx.font = `${fs * 0.7}px monospace`;
+          ctx.fillStyle = `hsla(${child.color.h},${child.color.s}%,70%,0.3)`;
+          const leafCount = countLeaves(child);
+          ctx.fillText(`${leafCount}♪`, pos.x, labelY + fs * 0.8);
+        }
+      }
+
+      // Leaf note indicator
+      if (!childHasKids && child.data && child.data.note && pos.r > 10) {
+        ctx.font = `${Math.max(9, pos.r * 0.24)}px monospace`;
+        const noteAlpha = childFired > 0.1 ? 0.8 : 0.4;
+        ctx.fillStyle = `hsla(${child.color.h},${child.color.s}%,80%,${noteAlpha})`;
+        ctx.textAlign = 'center';
+        ctx.fillText(`♪${child.data.note}`, pos.x, pos.y - pos.r * 0.45);
+      }
+
+      // Hit testing (depth 0 children only)
+      if (depth === 0) {
+        childPositions.push({ x: pos.x, y: pos.y, radius: pos.r, index: i, node: child });
+      }
+    }
+  }
+
+  // Current node label
+  if (depth === 0) {
+    ctx.font = '22px monospace';
+    ctx.fillStyle = `hsla(${col.h},${col.s}%,90%,0.7)`;
+    ctx.textAlign = 'center';
+    ctx.fillText(node.label, cx, cy - radius - 18);
+    if (node.data && node.data.subtitle) {
+      ctx.font = '14px monospace';
+      ctx.fillStyle = `hsla(${col.h},${col.s}%,75%,0.4)`;
+      ctx.fillText(node.data.subtitle, cx, cy - radius);
+    } else if (node.data && node.data.type) {
+      ctx.font = '14px monospace';
+      ctx.fillStyle = `hsla(${col.h},${col.s}%,75%,0.4)`;
+      ctx.fillText(node.data.type, cx, cy - radius);
+    }
+  }
+}
+
+// ─── INTERACTION ─────────────────────────────────────────
+let mouseX = null, mouseY = null;
+let prevSelectedChild = null;
+
+addEventListener('mousemove', e => {
+  if (!gateOpen) return;
+  mouseX = e.clientX; mouseY = e.clientY;
+  // Queen's gaze IS the searchlight — at every level
+  const gazeHit = queenGazeSelect(W / 2, H / 2, mouseX, mouseY);
+  selectedChild = gazeHit >= 0 ? gazeHit : null;
+
+  if (selectedChild !== prevSelectedChild && selectedChild !== null) {
+    const node = currentNode();
+    if (node.children && node.children[selectedChild]) {
+      playHover(node.children[selectedChild]);
+    }
+  }
+  prevSelectedChild = selectedChild;
+  document.body.style.cursor = selectedChild !== null ? 'pointer' : 'default';
+});
+
+addEventListener('click', e => {
+  if (!gateOpen) return;
+  if (!audioInitialized) initAudio();
+
+  for (const cp of childPositions) {
+    const dx = e.clientX - cp.x, dy = e.clientY - cp.y;
+    if (dx * dx + dy * dy < cp.radius * cp.radius * 0.85) {
+      if (cp.node.children && cp.node.children.length > 0) {
+        navStack.push(cp.node);
+        selectedChild = null; animProgress = 0;
+        updateActiveLeafs();
+        playDescend(cp.node);
+      } else {
+        playLeaf(cp.node);
+      }
+      return;
+    }
+  }
+  const homeR = Math.min(W, H) * 0.35;
+  const dx = e.clientX - W / 2, dy = e.clientY - H / 2;
+  if (dx * dx + dy * dy < homeR * homeR && navStack.length > 1) {
+    navStack.pop();
+    selectedChild = null; animProgress = 0;
+    updateActiveLeafs();
+    playAscend(currentNode());
+    return;
+  }
+  flowers.push({
+    x: e.clientX, y: e.clientY, hue: 20 + Math.random() * 40,
+    phase: Math.random() * Math.PI * 2, claimed: null, collected: false
+  });
+});
+
+addEventListener('wheel', e => {
+  if (!gateOpen) return;
+  e.preventDefault();
+  if (e.deltaY > 0) {
+    if (selectedChild !== null) {
+      const child = currentNode().children[selectedChild];
+      if (child && child.children && child.children.length > 0) {
+        navStack.push(child); selectedChild = null; animProgress = 0;
+        updateActiveLeafs(); playDescend(child);
+      }
+    }
+  } else {
+    if (navStack.length > 1) {
+      navStack.pop(); selectedChild = null; animProgress = 0;
+      updateActiveLeafs(); playAscend(currentNode());
+    }
+  }
+}, { passive: false });
+
+addEventListener('keydown', e => {
+  if (!gateOpen) return;
+  if (e.key === 'Escape' && navStack.length > 1) {
+    navStack.pop(); selectedChild = null; animProgress = 0;
+    updateActiveLeafs(); playAscend(currentNode());
+  }
+  if (e.key === ' ') {
+    e.preventDefault();
+    for (let i = 0; i < 10; i++) flowers.push({
+      x: Math.random() * W, y: Math.random() * H, hue: 20 + Math.random() * 40,
+      phase: Math.random() * Math.PI * 2, claimed: null, collected: false
+    });
+  }
+  if (e.key === 'r' || e.key === 'R') { flowers = []; flowerCollected = 0; }
+  if (e.key === 'b' || e.key === 'B') {
+    // Reset stuck state — if previous attempt failed, allow retry
+    if (bachPlaying) {
+      // If somehow stuck, force-clear after user re-presses B
+      bachPlaying = false;
+    }
+    playBach();
+  }
+});
+
+// ─── AUDIO — harpsichord, event-driven ───────────────────
+let audioCtx = null, audioInitialized = false;
+let audioMaster = null;
+
+const SCALE = [
+  138.59, 164.81, 185.00, 207.65, 246.94,
+  277.18, 329.63, 369.99, 415.30, 493.88,
+  554.37, 659.26, 739.99, 830.61, 987.77
+];
+function rankToFreq(rank) {
+  const idx = Math.min(rank * 2, SCALE.length - 1);
+  return SCALE[idx];
+}
+
+function initAudio() {
+  if (audioInitialized) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.resume();
+  audioMaster = audioCtx.createGain();
+  audioMaster.gain.value = 0.35;
+  audioMaster.connect(audioCtx.destination);
+  audioInitialized = true;
+}
+
+function pluck(freq, vol, decay) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  vol = vol || 0.3; decay = decay || 0.4;
+
+  const osc1 = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc1.type = 'triangle';
+  osc1.frequency.setValueAtTime(freq * 1.004, now);
+  osc1.frequency.exponentialRampToValueAtTime(freq, now + 0.035);
+
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 3;
+  const osc2gain = audioCtx.createGain();
+  osc2gain.gain.value = 0.035;
+
+  osc1.connect(gain); osc2.connect(osc2gain); osc2gain.connect(gain);
+  gain.connect(audioMaster);
+
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(vol, now + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
+
+  osc1.start(now); osc2.start(now);
+  osc1.stop(now + decay + 0.05); osc2.stop(now + decay + 0.05);
+}
+
+function playDescend(node) {
+  if (!audioCtx) return;
+  const freq = rankToFreq(node.rank);
+  pluck(freq, 0.3, 0.5);
+  setTimeout(() => pluck(freq * 1.5, 0.15, 0.35), 60);
+}
+function playAscend(node) {
+  if (!audioCtx) return;
+  const freq = rankToFreq(node.rank);
+  pluck(freq, 0.25, 0.4);
+  setTimeout(() => pluck(freq * 0.8, 0.12, 0.3), 50);
+}
+function playHover(node) {
+  if (!audioCtx) return;
+  pluck(rankToFreq(node.rank), 0.08, 0.2);
+}
+function playLeaf(node) {
+  if (!audioCtx) return;
+  const freq = (node.data && node.data.freq) || 277.18;
+  pluck(freq, 0.25, 0.6);
+}
+
+// ─── BACH — the swarm plays the temporal graph ───────────
+// Press B. The fugue IS the graph. Navigate to hear subtrees.
+// Voices outside your subtree: ghosted (4% volume).
+// Voices inside: full. The decompressor.
+
+let bachPlaying = false;
+
+function buildFugueEvents() {
+  const events = [];
+  const BT = BWV847.beatMs;
+
+  for (const entry of BWV847.timeline) {
+    const voice = BWV847.voices[entry.voice];
+    const phrase = voice.phrases[entry.phrase];
+    let beat = entry.beat;
+
+    phrase.notes.forEach((note, ni) => {
+      const leafId = `v${entry.voice}p${entry.phrase}n${ni}`;
+      const freq = FREQ[note.n];
+      const decay = Math.max(0.15, note.b * BT / 1000 * 1.3);
+      const vol = entry.voice <= 1 ? 0.28 : 0.22;
+
+      events.push({
+        t: Math.round(beat * BT),
+        f: freq, v: vol, d: decay,
+        leafId: leafId,
+        voiceIdx: entry.voice,
+        phraseId: `v${entry.voice}p${entry.phrase}`
+      });
+      beat += note.b;
+    });
+  }
+
+  // Final chord
+  if (BWV847.finalChord) {
+    const fc = BWV847.finalChord;
+    for (const note of fc.notes) {
+      // Final chord uses last leaf of each voice's last phrase
+      const voice = BWV847.voices[note.v];
+      const lastPhrase = voice.phrases.length - 1;
+      const lastNote = voice.phrases[lastPhrase].notes.length - 1;
+      events.push({
+        t: Math.round(fc.beat * BT),
+        f: FREQ[note.n], v: 0.30, d: 2.5,
+        leafId: `v${note.v}p${lastPhrase}n${lastNote}`,
+        voiceIdx: note.v,
+        phraseId: `v${note.v}p${lastPhrase}`
+      });
+    }
+  }
+
+  return events.sort((a, b) => a.t - b.t);
+}
+
+// Propagate fire up the tree
+function fireNode(leafId) {
+  const now = performance.now();
+  const leaf = leafMap[leafId];
+  if (leaf) leaf.lastFired = now;
+
+  // Parse id to propagate: v0p1n3 → v0p1 → v0 → root
+  const parts = leafId.split(/(?=p|n)/);
+  // voice level: v0
+  const voiceId = parts[0];
+  for (const node of rootGraph.children) {
+    if (node.id === voiceId) {
+      node.lastFired = now;
+      // phrase level
+      for (const phrase of node.children) {
+        if (leafId.startsWith(phrase.id)) {
+          phrase.lastFired = now;
+        }
+      }
+    }
+  }
+  rootGraph.lastFired = now;
+}
+
+// Pre-build leaf→bee index map (avoid linear scan per note)
+const leafToBee = {};
+allLeaves.forEach((leaf, i) => { leafToBee[leaf.id] = i; });
+
+function playBach() {
+  if (!audioCtx) initAudio();
+  // Chrome may re-suspend AudioContext — always resume on user gesture
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (bachPlaying) return;
+  bachPlaying = true;
+
+  const events = buildFugueEvents();
+  let maxTime = 0;
+
+  for (const ev of events) {
+    if (ev.t > maxTime) maxTime = ev.t;
+
+    setTimeout(() => {
+      try {
+        // Graph-traversable: volume depends on subtree membership
+        const inSubtree = activeLeafIds.has(ev.leafId);
+        const vol = inSubtree ? ev.v : ev.v * 0.04; // ghosts at 4%
+
+        pluck(ev.f, vol, ev.d);
+
+        // Temporal glow — fire the node in the graph
+        if (inSubtree) fireNode(ev.leafId);
+
+        // Bee animation — only for active bees
+        const beeIdx = leafToBee[ev.leafId];
+        if (beeIdx !== undefined && beeIdx < bgBees.length) {
+          const bee = bgBees[beeIdx];
+          if (bee.alpha > 0.1) {
+            bee.carrying = true;
+            bee.size = bee.baseSize + 3;
+            const targetY = H * 0.85 - (ev.f / 600) * H * 0.6;
+            bee.vy += (targetY - bee.y) * 0.04;
+            const targetX = W * 0.2 + (ev.voiceIdx / 3) * W * 0.6;
+            bee.vx += (targetX - bee.x) * 0.02;
+            setTimeout(() => { bee.carrying = false; bee.size = bee.baseSize; }, ev.d * 800);
+          }
+        }
+      } catch(e) { /* swallow: don't let one bad note kill the fugue */ }
+    }, ev.t);
+  }
+
+  setTimeout(() => { bachPlaying = false; }, maxTime + 3000);
+}
+
+// ─── BREADCRUMB ──────────────────────────────────────────
+function updateBreadcrumb() {
+  const parts = navStack.map((n, i) => {
+    const active = i === navStack.length - 1;
+    return `<span style="color:${active ? '#f0c040' : 'rgba(240,192,64,0.4)'}">${n.label}</span>`;
+  });
+  breadEl.innerHTML = parts.join(' <span style="color:rgba(240,192,64,0.2)">→</span> ');
+}
+
+// ─── HUD ─────────────────────────────────────────────────
+function updateHUD() {
+  const node = currentNode();
+  const nc = node.children ? node.children.length : 0;
+  const d = navStack.length - 1;
+  const leaves = countLeaves(node);
+  const activeLeaves = activeLeafIds.size;
+  const noteInfo = node.data && node.data.note ? ` · ♪${node.data.note}` : '';
+  const voiceInfo = node.data && node.data.voiceIdx !== undefined ? ` · voice ${node.data.voiceIdx}` : '';
+  hudEl.innerHTML =
+    `rank: ${node.rank} · depth: ${d} · children: ${nc} · bees: ${activeLeaves}♪${noteInfo}${voiceInfo}` +
+    `<br><span style="opacity:0.4">click = descend · esc = ascend · B = Bach · space = flowers</span>`;
+}
+
+// ─── MAIN LOOP ───────────────────────────────────────────
+function frame() {
+  t += 16;
+  if (animProgress < 1) animProgress = Math.min(1, animProgress + 0.05);
+
+  const node = currentNode();
+  const homeR = Math.min(W, H) * 0.35;
+  const scale = 0.5 + animProgress * 0.5;
+
+  drawBackground();
+
+  // Depth dimming — darker interior makes fiber lights pop
+  const dimA = Math.min(0.45, 0.08 + navStack.length * 0.08);
+  ctx.fillStyle = `rgba(12,12,28,${dimA})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw the graph
+  ctx.save();
+  ctx.globalAlpha = animProgress;
+  childPositions = [];
+  drawNodeHex(node, W / 2, H / 2, homeR * scale, 0);
+  drawQueen(W / 2, H / 2, homeR * scale, mouseX, mouseY);
+  ctx.restore();
+
+  updateBreadcrumb();
+  updateHUD();
+
+  requestAnimationFrame(frame);
+}
+
+frame();
+</script>
+</body>
+</html>
