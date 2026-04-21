@@ -1,5 +1,7 @@
 # Distributed Topological Framework (DRT-Encoder-Brain)
 
+> This is an amateur engineering project. We are not HPC professionals and make no competitive claims.
+
 A highly concurrent, browser-based topological framework for visualizing multi-agent AI coordination, continuous state tracking, and biological network inference. 
 
 This repository contains the core front-end rendering engines for autonomous AI systems, mapping continuous data states directly into strict geometric bounds.
