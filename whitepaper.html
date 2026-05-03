@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encoder Brain — historical explorer hub</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #ffffff; color: #1a1a1a; font-family: 'Inter', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; font-size: 15px; line-height: 1.65; padding: 64px 48px; max-width: 760px; margin: 0 auto; }
+  h1 { color: #0a0a0a; font-weight: 400; font-size: 32px; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 8px; }
+  h2 { color: #0a0a0a; font-weight: 500; font-size: 18px; line-height: 1.4; margin: 32px 0 12px; }
+  h3 { color: #0a0a0a; font-weight: 500; font-size: 15px; line-height: 1.4; margin: 24px 0 10px; }
+  p { color: #2a2a2a; margin: 0 0 14px; }
+  ul, ol { margin: 10px 0 14px 22px; }
+  li { color: #2a2a2a; margin: 6px 0; }
+  a { color: #cc0000; text-decoration: none; border-bottom: 1px dotted rgba(204,0,0,0.4); }
+  a:hover { border-bottom-color: #cc0000; }
+  em { color: #cc0000; font-style: italic; }
+  strong { color: #0a0a0a; font-weight: 600; }
+  code { font-family: 'SF Mono', 'Menlo', 'Courier New', monospace; font-size: 13px; background: #f7f7f8; padding: 2px 6px; border-radius: 3px; color: #1a1a1a; }
+  pre { background: #f7f7f8; border-left: 3px solid #cc0000; padding: 14px 18px; border-radius: 4px; overflow-x: auto; margin: 16px 0; font: 13px/1.6 'SF Mono', 'Menlo', 'Courier New', monospace; color: #1a1a1a; }
+  pre code { background: none; padding: 0; color: #1a1a1a; font-size: inherit; }
+  blockquote { border-left: 3px solid #cc0000; padding: 10px 16px; margin: 24px 0; font-size: 13px; line-height: 1.6; color: #555; background: #fdf6f6; font-style: italic; border-radius: 0 4px 4px 0; }
+  blockquote strong { color: #0a0a0a; font-style: normal; }
+  hr { border: none; border-top: 1px solid #e8e8e8; margin: 32px 0; }
+  .subtitle { color: #888; font-style: italic; margin-bottom: 20px; font-size: 15px; }
+  .figure { margin: 24px 0; padding: 16px; background: #f7f7f8; border: 1px solid #e8e8e8; border-radius: 4px; text-align: center; }
+  .figure svg { max-width: 100%; }
+  .figure .caption { color: #888; font: 13px 'SF Mono', 'Menlo', monospace; font-style: italic; margin-top: 10px; text-align: center; }
+  .toc { background: #f7f7f8; border: 1px solid #e8e8e8; border-radius: 4px; padding: 16px 22px; margin: 20px 0 30px; }
+  .toc h2 { font-size: 13px; margin: 0 0 8px; border: none; padding: 0; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #0a0a0a; }
+  .toc ul { margin: 0 0 0 20px; font-size: 13px; }
+  .toc li { margin: 3px 0; }
+  .hl { color: #cc0000; font-weight: 600; }
+  .credit { color: #888; font-size: 11px; border-top: 1px solid #e8e8e8; padding-top: 16px; margin-top: 56px; }
+  .nav { color: #888; font: 13px 'SF Mono', 'Menlo', monospace; margin-bottom: 20px; }
+  .nav a { color: #cc0000; }
+  h2[id], h3[id] { scroll-margin-top: 20px; }
+  svg text { font-family: 'SF Mono', 'Menlo', 'Courier New', monospace; fill: #2a2a2a; }
+</style>
+</head>
+<body>
+<h1
+id="drt_encoder_brain-the-explorers-index-of-bundled-demos">DRT_Encoder_Brain
+— the explorer’s index of bundled demos</h1>
+<blockquote>
+<p><strong>Humble disclaimer.</strong> Amateur engineering project. We
+are not HPC professionals and make no competitive claims. Errors are
+likely. The repository is a <em>historical sandbox of small
+visualizations</em>, not a production system — see <a href="#not">What
+is not in the paper</a>.</p>
+</blockquote>
+<p>GPLv3.</p>
+<hr />
+<h2 id="contents">Contents</h2>
+<ul>
+<li><a href="#what">What it is</a></li>
+<li><a href="#why">Why it matters — bio digital twins</a></li>
+<li><a href="#how">How to use it — demo by demo</a></li>
+<li><a href="#reading">Reading the bundle</a></li>
+<li><a href="#companion">Companion repositories — the canonical live
+versions</a></li>
+<li><a href="#not">What is not in the paper</a></li>
+<li><a href="#refs">References</a></li>
+</ul>
+<hr />
+<h2 id="what-it-is"><a id="what"></a>What it is</h2>
+<p>A single repository that bundles several browser demos exploring the
+Distributed Reconstruction framework. The bundle includes the cellular
+biology layer (HPA-axis cell graph), the harmonic solver, the
+generator/scanner pair, the BWV 847 pipeline, the supernova solver, the
+rank-sphere viewer, and a city / power-grid pair. Every demo is a
+self-contained HTML file with no build step, no server, and no external
+dependencies beyond a modern browser.</p>
+<p>This repository is, in effect, the <strong>early sandbox</strong>
+where the framework was first explored visually before the v0.1 paper
+was written. The bundled files are dated 2026-03-23 (with a couple of
+rank-sphere variants from 2026-03-01) and represent a snapshot of how
+the ideas were being prototyped at that moment. Several of these demos
+have since graduated into their own dedicated repositories with cleaner
+code and updated framing — those canonical live versions are linked in
+the <a href="#companion">companion section below</a>. The bundle stays
+around as a historical record of the exploration phase.</p>
+<p><strong><a href="https://norayr-m.github.io/DRT-Encoder-Brain/">Live
+landing page →</a></strong></p>
+<hr />
+<h2 id="why-it-matters-bio-digital-twins"><a id="why"></a>Why it matters
+— bio digital twins</h2>
+<p>A bio digital twin is a computational model of a specific biological
+system — a section of cortex, a hepatic lobule, a heart chamber — wired
+tightly enough that it can predict the system’s response to a stimulus.
+Building a useful twin requires several different kinds of geometric and
+computational machinery to work together: cellular dynamics on graph
+topology, sparse forward and backward projections, multi-vantage-point
+reconstruction, encode/process/decode loops on ranked substrates. No
+single demo covers all of these; each demo isolates one slice.</p>
+<p>The encoder-brain bundle is the <strong>explorer’s index</strong> for
+that work. A reader can open the landing page, pick a slice, run the
+demo for it, and see one specific piece of the larger machinery in
+isolation. The bundled snapshots predate the canonical live versions in
+the per-demo repositories, so the framing and the styling are rougher;
+the value is in the breadth of slices visible in one place.</p>
+<p>For a reader looking at the bio digital twin direction for the first
+time, the encoder-brain bundle is the fastest way to scan the landscape.
+For a reader who knows what they want, the canonical live versions in
+the per-demo repositories are the right destination.</p>
+<p>The framing for the trio (generator + cell simulator + scanner) is
+the <a
+href="https://norayr-m.github.io/drt-generator/whitepaper.html">trio
+white paper</a>. The encoder-brain bundle is <em>not</em> part of the
+trio — it is a parallel index that points to the trio members and to
+several other framework demos.</p>
+<hr />
+<h2 id="how-to-use-it-demo-by-demo"><a id="how"></a>How to use it — demo
+by demo</h2>
+<p>Open the landing page and pick a demo. The bundled files:</p>
+<ul>
+<li><strong><code>2026-03-23_-cell_simulator-NM_v01.html</code></strong>
+— small cells on a non-grid graph, each with local rules, scored by Bach
+BWV 847; emerges into HPA-axis-flavoured visuals. (Canonical live
+version: <a
+href="https://github.com/norayr-m/drt-cell-simulator">drt-cell-simulator</a>.)</li>
+<li><strong><code>2026-03-23_-generator-NM_v01.html</code></strong> — a
+discrete pipeline (rotating clock → lookup table → routing matrix →
+weighted nodes) shown side-by-side with the equivalent deep-graph
+unification. (Canonical: <a
+href="https://github.com/norayr-m/drt-generator">drt-generator</a>.)</li>
+<li><strong><code>2026-03-23_-scanner-NM_v01.html</code></strong> — the
+dual of the generator: signal flows from a master back through the
+columns, used for inspecting reconstruction quality. (Canonical: <a
+href="https://github.com/norayr-m/drt-scanner">drt-scanner</a>.)</li>
+<li><strong><code>2026-03-23_-harmonic_solver-NM_v01.html</code></strong>
+— a small multi-agent debate visualization.</li>
+<li><strong><code>2026-03-23_-pipeline-NM_v01.html</code></strong> —
+composer/decomposer pair running in parallel on the C-minor fugue, BWV
+847. (Canonical: <a
+href="https://github.com/norayr-m/drt-pipeline">drt-pipeline</a>.)</li>
+<li><strong><code>2026-03-23_-supernova_solver-NM_v01.html</code></strong>
+— observers on orbital paths, with reconstruction at convergence points.
+(Canonical: <a
+href="https://github.com/norayr-m/drt-orbital-solver">drt-orbital-solver</a>.)</li>
+<li><strong><code>CityDRT_2026-03-23_NM_v01.html</code></strong> — early
+sketch of the framework on a city topology.</li>
+<li><strong><code>GridDRT-Demo_2026-03-23_NM_v01.html</code></strong> —
+early sketch on a power-grid topology.</li>
+<li><strong><code>GridDRT_2026-03-23_NM_v01.java</code></strong> — a
+Java sketch of the grid version (not browser-runnable; provided as a
+code reference).</li>
+<li><strong><code>rank-sphere.html</code></strong> plus dated variants
+(<code>_v05</code>, <code>_v06</code>) — the rank-by-rank navigable
+sphere used by the decoder family.</li>
+</ul>
+<p>Each file is independent; no shared CSS, no shared JavaScript, no
+asset directory. Click a file in the landing page to open it in your
+browser.</p>
+<hr />
+<h2 id="reading-the-bundle"><a id="reading"></a>Reading the bundle</h2>
+<p>The bundled snapshots and the canonical live versions differ in
+several ways. Knowing which to read for what:</p>
+<ul>
+<li><strong>Use the bundled snapshots</strong> to scan the landscape
+quickly, see the breadth of demos in one place, or look at a historical
+record of how the ideas were being prototyped before the v0.1
+paper.</li>
+<li><strong>Use the canonical live versions</strong> for the most
+up-to-date framing, the cleanest styling, the
+post-norm-growth-retraction prose, and the per-demo whitepapers.</li>
+</ul>
+<p>For most readers, the canonical live versions are the right
+destination. The bundle is the index that points to them.</p>
+<p>A note on framing changes between the bundled snapshots and the
+canonical live versions: the canonical versions reflect the v0.1
+retraction of the norm-growth claim. The bundled snapshots predate that
+retraction in some places and may carry the older language. The
+conceptual content is the same in either version; the precise wording of
+the framework’s claims is more accurate in the canonical live versions
+and in the per-demo whitepapers linked from them.</p>
+<hr />
+<h2
+id="companion-repositories-the-canonical-live-versions"><a id="companion"></a>Companion
+repositories — the canonical live versions</h2>
+<p>Several of the demos in this bundle have graduated into their own
+dedicated repositories with updated framing and per-repo
+whitepapers:</p>
+<ul>
+<li><strong><a
+href="https://github.com/norayr-m/drt-generator">drt-generator</a></strong>
+— the canonical 7-column generator with <a
+href="https://norayr-m.github.io/drt-generator/whitepaper.html">whitepaper</a>
+and <a
+href="https://norayr-m.github.io/drt-generator/presentation.html">presentation
+deck</a>.</li>
+<li><strong><a
+href="https://github.com/norayr-m/drt-scanner">drt-scanner</a></strong>
+— the canonical scanner (transpose pass) with <a
+href="https://norayr-m.github.io/drt-scanner/whitepaper.html">whitepaper</a>.</li>
+<li><strong><a
+href="https://github.com/norayr-m/drt-cell-simulator">drt-cell-simulator</a></strong>
+— the canonical cell simulator with <a
+href="https://norayr-m.github.io/drt-cell-simulator/whitepaper.html">whitepaper</a>,
+plus a bio digital twin prototype with infinite LOD zoom at <a
+href="https://norayr-m.github.io/drt-cell-simulator/digital_twin.html"><code>digital_twin.html</code></a>.</li>
+<li><strong><a
+href="https://github.com/norayr-m/drt-pipeline">drt-pipeline</a></strong>
+— the canonical BWV 847 forward/backward pipeline with <a
+href="https://norayr-m.github.io/drt-pipeline/whitepaper.html">whitepaper</a>.</li>
+<li><strong><a
+href="https://github.com/norayr-m/decoder-of-the-encoder">decoder-of-the-encoder</a></strong>
+— the BWV 847 fugue as a navigable graph tree with <a
+href="https://norayr-m.github.io/decoder-of-the-encoder/whitepaper.html">whitepaper</a>.</li>
+<li><strong><a
+href="https://github.com/norayr-m/interstellar-harmony">interstellar-harmony</a></strong>
+— the orbital transformer (rank-as-time encode/process/decode) with <a
+href="https://norayr-m.github.io/interstellar-harmony/whitepaper.html">whitepaper</a>.</li>
+<li><strong><a
+href="https://github.com/norayr-m/drt-orbital-solver">drt-orbital-solver</a></strong>
+— the 3D supernova solver with <a
+href="https://norayr-m.github.io/drt-orbital-solver/whitepaper.html">whitepaper</a>.</li>
+</ul>
+<p>The bundle is the historical sandbox; the dedicated repositories are
+the current state.</p>
+<hr />
+<h2 id="what-is-not-in-the-paper"><a id="not"></a>What is not in the
+paper</h2>
+<p>The honest list of what this paper deliberately does not claim:</p>
+<ul>
+<li><strong>A unified framework demo.</strong> The bundle is a
+<em>collection</em> of small isolated demos, not a single integrated
+system. Reading the bundle is like reading lab notebooks: each demo
+isolates one slice; the slices do not share code, styling, or
+runtime.</li>
+<li><strong>A current-state representation.</strong> The bundled HTMLs
+are dated 2026-03-23 and predate the v0.1 retraction of the norm-growth
+claim. Some bundled prose may carry the older language. The canonical
+live versions in the dedicated repositories are the up-to-date
+source.</li>
+<li><strong>A norm-growth claim.</strong> Earlier prose around this
+family of demos asserted that the aggregate of many partial views had
+bigger norm than the original signal — that <span
+class="math inline">∥<em>R</em>(<em>f</em>)∥ &gt; ∥<em>f</em>∥</span>.
+That inequality has been retracted in the v0.1 draft. The current claim
+is conditional and weaker: under four hypotheses and a bounded
+computational budget, the aggregate exposes structural features that are
+not accessible from the original signal alone within the same budget.
+The bundled snapshots may not reflect this update; the canonical live
+versions do.</li>
+<li><strong>A production system.</strong> None of the bundled HTMLs is
+engineered for production use. They are visualizations. The framework’s
+actual computational substrate is in the <a
+href="https://github.com/norayr-m/dagdb-engine">dagdb-engine</a> and <a
+href="https://github.com/norayr-m/savanna-engine">savanna-engine</a>
+repositories, not here.</li>
+</ul>
+<hr />
+<h2 id="references"><a id="refs"></a>References</h2>
+<ul>
+<li>Distributed Reconstruction work — v0.1 in preparation by N.
+Matevosyan and A. Petrosyan.</li>
+<li>Bach, J. S. — <em>The Well-Tempered Clavier</em>, Book I, BWV 847
+(1722) — used as the audio example in several bundled demos.</li>
+</ul>
+<p>Trio framing in detail: <a
+href="https://norayr-m.github.io/drt-generator/whitepaper.html">Generator,
+Cell Simulator, Scanner — a sparse matrix-vector trio for bio digital
+twins</a> (<a
+href="https://norayr-m.github.io/drt-generator/whitepaper.md">markdown
+source</a>). The encoder-brain bundle is <em>not</em> part of the trio —
+it is a parallel index that points to the trio members and to several
+other framework demos.</p>
+<p>Visualizations co-authored with Claude (Anthropic).</p>
+<hr />
+<blockquote>
+<p><strong>Humble disclaimer.</strong> Amateur engineering project. We
+are not HPC professionals and make no competitive claims. Numbers speak;
+ego doesn’t. Errors likely.</p>
+</blockquote>
+<p>GPLv3. See <a href="LICENSE"><code>LICENSE</code></a>.</p>
+</body>
+</html>
