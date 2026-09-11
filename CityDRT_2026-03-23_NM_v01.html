@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>JimDirBee — The City</title>
+<title>CityDRT — The City</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -158,8 +158,8 @@ canvas { position: absolute; top: 0; left: 0; }
 
 <div id="ui">
     <div id="header">
-        <h1>JimDirBee — THE CITY</h1>
-        <div class="sub">Your Pipelines Are Projection Operators &nbsp;·&nbsp; Three-phase neuron: Jim's &nbsp;·&nbsp; C. Anoian & N. Matevosyan</div>
+        <h1>CityDRT — THE CITY</h1>
+        <div class="sub">Your Pipelines Are Projection Operators &nbsp;·&nbsp; Three-phase neuron &nbsp;·&nbsp; N. Matevosyan</div>
     </div>
 
     <div id="district-label"></div>
@@ -201,7 +201,7 @@ canvas { position: absolute; top: 0; left: 0; }
         <div id="sql-display">
 <span class="comment">-- THE CITY: ~1000 nodes, 4 substations, 20 feeders, 160 transformers, 800+ meters</span>
 <span class="comment">-- Scroll to zoom. Drag to pan. Watch the bees flow.</span>
-<span class="comment">-- This is Jim's infrastructure, alive on the graph.</span>
+<span class="comment">-- This is the city's infrastructure, alive on the graph.</span>
 <span class="comment">-- Every bee is a query. Every hum is data validated.</span>
         </div>
     </div>
@@ -913,7 +913,7 @@ setTimeout(() => {
     let sql = document.getElementById('sql-display');
     sql.innerHTML = `<span class="comment">-- 06:00 — The city wakes up.</span>
 <span class="comment">-- ${allNodes.length} nodes. ${allEdges.length} edges. ${meters.length} meters.</span>
-<span class="comment">-- Every one of them is a row in Jim's database.</span>
+<span class="comment">-- Every one of them is a row in the city's database.</span>
 <span class="comment">-- Every edge is a JOIN he wrote at 2am.</span>
 <span class="comment">-- The bees are his pipelines, humming.</span>
 <span class="comment">--</span>

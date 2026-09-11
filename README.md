@@ -16,7 +16,7 @@ Open the landing page and pick a demo. Each is a self-contained HTML file with n
 - **Harmonic Solver** — a small multi-agent debate visualization.
 - **Pipeline (BWV 847)** — a composer/decomposer pair running in parallel on the C-minor fugue.
 - **Supernova / Orbital Solver** — observers on orbital paths, with reconstruction at convergence points.
-- **CityDRT, GridDRT, GridDRT-Demo** — early sketches of the framework on city / power-grid topologies.
+- **CityDRT** — an early sketch of the framework on a city topology.
 - **rank-sphere v05 / v06 / `rank-sphere.html`** — the rank-by-rank navigable sphere used by the decoder.
 
 The repository is, in effect, the early sandbox where the framework was first explored visually before the v0.1 paper.
@@ -48,13 +48,11 @@ Each demo is a single HTML file in the repository root. No dependencies. Audio i
 - `2026-03-23_-scanner-NM_v01.html`
 - `2026-03-23_-supernova_solver-NM_v01.html`
 - `CityDRT_2026-03-23_NM_v01.html`
-- `GridDRT_2026-03-23_NM_v01.java` — Java sketch
-- `GridDRT-Demo_2026-03-23_NM_v01.html`
 - `rank-sphere.html`, `rank-sphere_2026-03-01_NM_v05.html`, `rank-sphere_2026-03-01_NM_v06.html`
 
 ## References
 
-- Distributed Reconstruction work — v0.1 in preparation, N. Matevosyan and A. Petrosyan.
+- Distributed Reconstruction work — N. Matevosyan, work in progress.
 - Bach, BWV 847 — *The Well-Tempered Clavier*, Book I (1722).
 
 Visualizations co-authored with Claude (Anthropic).
